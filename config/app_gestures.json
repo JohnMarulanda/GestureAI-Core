@@ -1,0 +1,19 @@
+{
+    "gestures": {
+        "open": {
+            "Chrome": [0, 1, 1, 0, 0],
+            "Notepad": [1, 1, 0, 0, 0],
+            "Calculator": [1, 1, 1, 0, 0]
+        },
+        "close": {
+            "Chrome": [0, 0, 0, 0, 0],
+            "Notepad": [0, 0, 0, 0, 1],
+            "Calculator": [1, 0, 0, 0, 1]
+        }
+    },
+    "paths": {
+        "Chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "Notepad": "notepad.exe",
+        "Calculator": "calc.exe"
+    }
+}

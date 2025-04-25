@@ -1,0 +1,28 @@
+{
+    "gestures": {
+        "copy": {
+            "shortcut": ["ctrl", "c"],
+            "gesture": [0, 1, 1, 0, 0]
+        },
+        "paste": {
+            "shortcut": ["ctrl", "v"],
+            "gesture": [1, 1, 0, 0, 0]
+        },
+        "alt_tab": {
+            "shortcut": ["alt", "tab"],
+            "gesture": [0, 1, 1, 1, 0]
+        },
+        "task_manager": {
+            "shortcut": ["ctrl", "shift", "esc"],
+            "gesture": [1, 1, 1, 0, 0]
+        },
+        "refresh": {
+            "shortcut": ["f5"],
+            "gesture": [0, 0, 0, 0, 1]
+        },
+        "escape": {
+            "shortcut": ["esc"],
+            "gesture": [0, 0, 0, 0, 0]
+        }
+    }
+}
