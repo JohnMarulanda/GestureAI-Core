@@ -1,0 +1,12 @@
+{
+    "button_gestures": {
+        "button1": [0, 1, 0, 0, 0],
+        "button2": [0, 1, 1, 0, 0],
+        "button3": [1, 1, 1, 0, 0],
+        "button4": [1, 1, 1, 0, 0],
+        "button5": [1, 1, 1, 1, 1],
+        "button6": [0, 0, 0, 0, 0],
+        "quit_controller": [1, 0, 0, 1, 0],
+        "quit_app": [0, 1, 1, 1, 0]
+    }
+}

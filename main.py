@@ -3,6 +3,10 @@ from tkinter import ttk, PhotoImage
 from tkinter.font import Font
 import sys
 import os
+import json
+import cv2
+import time
+from core.gesture_detector import GestureDetector
 from core.controllers.volume_controller import VolumeController
 from core.controllers.brightness_controller import BrightnessController
 from core.controllers.app_controller import AppController
@@ -15,8 +19,19 @@ from core.controllers.zoom_controller import ZoomController
 from core.controllers.paint_controller import PaintController
 from core.controllers.mouse_controller import MouseController
 
-class MainWindow:
+class MainWindow(GestureDetector):
     def __init__(self):
+        super().__init__()
+        
+        # Gesture tracking variables
+        self.current_gesture = None
+        self.gesture_start_time = 0
+        self.gesture_duration = 0
+        self.required_duration = 2.0  # Seconds to hold gesture before action
+        
+        # Load gesture mappings
+        self.config_file = os.path.join(os.path.dirname(__file__), "config", "gesture_mappings.json")
+        self.load_gesture_config()
         self.root = tk.Tk()
         self.root.title("GestureAI Control Panel")
         
@@ -148,8 +163,112 @@ class MainWindow:
             import tkinter.messagebox as messagebox
             messagebox.showerror("Error", f"Error al iniciar el controlador: {str(e)}")
     
+    def load_gesture_config(self):
+        """Load gesture mappings from config file"""
+        try:
+            with open(self.config_file, 'r') as f:
+                self.gesture_config = json.load(f)
+        except Exception as e:
+            print(f"Error loading gesture config: {e}")
+            self.gesture_config = {"button_gestures": {}}
+    
+    def detect_gesture(self, hand_landmarks):
+        """Detect finger positions and return as a list of 0s and 1s"""
+        fingertips = [4, 8, 12, 16, 20]  # Thumb, index, middle, ring, pinky
+        finger_states = []
+        
+        for tip_id in fingertips:
+            if tip_id == 4:
+                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
+                    finger_states.append(1)
+                else:
+                    finger_states.append(0)
+            else:
+                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
+                    finger_states.append(1)
+                else:
+                    finger_states.append(0)
+        
+        return finger_states
+    
+    def identify_button(self, finger_states):
+        """Identify which button to activate based on the detected gesture"""
+        for button_name, gesture in self.gesture_config["button_gestures"].items():
+            if finger_states == gesture:
+                button_index = int(button_name.replace("button", "")) - 1
+                return button_index
+        return None
+    
+    def process_gestures(self):
+        """Process gestures and activate corresponding buttons"""
+        image, results = self.process_frame()
+        if image is None:
+            return False
+        
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                finger_states = self.detect_gesture(hand_landmarks)
+                
+                # Verificar gestos de cierre
+                if finger_states == self.gesture_config["button_gestures"]["quit_app"]:
+                    return False
+                elif finger_states == self.gesture_config["button_gestures"]["quit_controller"]:
+                    if self.active_controller:
+                        self.active_controller.stop_camera()
+                        self.active_controller = None
+                        return True
+                
+                button_index = self.identify_button(finger_states)
+                
+                if button_index is not None:
+                    current_time = time.time()
+                    if button_index == self.current_gesture:
+                        self.gesture_duration = current_time - self.gesture_start_time
+                        if self.gesture_duration >= self.required_duration:
+                            # Calculate the actual button index based on current group
+                            actual_index = button_index + (self.current_group * 5)
+                            if actual_index < len(self.all_controllers):
+                                if button_index == 5:  # Botón "Otros"
+                                    self.next_controller_group()
+                                else:
+                                    name, controller, _ = self.all_controllers[actual_index]
+                                    self.start_controller(controller)
+                            self.current_gesture = None
+                            self.gesture_duration = 0
+                    else:
+                        self.current_gesture = button_index
+                        self.gesture_start_time = current_time
+                        self.gesture_duration = 0
+                else:
+                    self.current_gesture = None
+                    self.gesture_duration = 0
+        else:
+            self.current_gesture = None
+            self.gesture_duration = 0
+        
+        cv2.imshow('Gesture Control', image)
+        return True
+    
     def run(self):
-        self.root.mainloop()
+        """Main loop for the application"""
+        if not self.start_camera():
+            print("Failed to open webcam")
+            return
+        
+        try:
+            while True:
+                self.root.update()
+                
+                if not self.process_gestures():
+                    break
+                
+                if cv2.waitKey(5) & 0xFF == ord('z'):
+                    break
+        
+        finally:
+            self.stop_camera()
+            cv2.destroyAllWindows()
+            self.root.quit()
 
 if __name__ == "__main__":
     app = MainWindow()
