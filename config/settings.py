@@ -13,6 +13,12 @@ CONFIDENCE_THRESHOLD = 0.5
 MIN_DETECTION_CONFIDENCE = 0.7
 MIN_TRACKING_CONFIDENCE = 0.5
 
+# GestureRecognitionManager settings
+GESTURE_MANAGER_ENABLED = True
+GESTURE_CONFIG_PATH = "config/GestureConfig.json"
+GESTURE_POOL_SIZE = 10
+GESTURE_DETECTION_INTERVAL = 0.01  # Seconds between detection attempts when below target FPS
+
 # Controller settings
 ACTION_DELAY = 0.3  # Minimum time between actions in seconds
 
@@ -84,7 +90,9 @@ BACKGROUND_COLOR = (0, 0, 0)  # Black
 
 # Paths
 LOG_PATH = "logs/gesture_log.txt"
+GESTURE_LOG_PATH = "logs/gesture_recognition.log"
 MODEL_PATH = "models/hand_gesture_model.pkl"
 GESTURE_MAPPINGS_PATH = "config/gesture_mappings.json"
 APP_GESTURES_PATH = "config/app_gestures.json"
 KEYBOARD_GESTURES_PATH = "config/keyboard_gestures.json"
+GESTURE_CONFIG_PATH = "config/GestureConfig.json"

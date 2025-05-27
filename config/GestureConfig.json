@@ -1,0 +1,127 @@
+{
+    "hand_gestures": [
+        {
+            "id": "pinch",
+            "name": "Pinch Gesture",
+            "landmarks": [[4, 8]],
+            "threshold": 0.85,
+            "action": "pinch_action"
+        },
+        {
+            "id": "palm",
+            "name": "Open Palm",
+            "landmarks": [[0, 5, 9, 13, 17]],
+            "threshold": 0.80,
+            "action": "palm_action"
+        },
+        {
+            "id": "fist",
+            "name": "Closed Fist",
+            "landmarks": [[0, 9]],
+            "threshold": 0.90,
+            "action": "fist_action"
+        },
+        {
+            "id": "point",
+            "name": "Pointing Gesture",
+            "landmarks": [[8, 5]],
+            "threshold": 0.85,
+            "action": "point_action"
+        },
+        {
+            "id": "victory",
+            "name": "Victory Sign",
+            "landmarks": [[8, 12]],
+            "threshold": 0.85,
+            "action": "victory_action"
+        },
+        {
+            "id": "thumbs_up",
+            "name": "Thumbs Up",
+            "landmarks": [[4, 2]],
+            "threshold": 0.85,
+            "action": "thumbs_up_action"
+        },
+        {
+            "id": "swipe_left",
+            "name": "Swipe Left",
+            "landmarks": [[8, 0]],
+            "threshold": 0.80,
+            "action": "swipe_left_action"
+        },
+        {
+            "id": "swipe_right",
+            "name": "Swipe Right",
+            "landmarks": [[8, 0]],
+            "threshold": 0.80,
+            "action": "swipe_right_action"
+        },
+        {
+            "id": "grab",
+            "name": "Grab Gesture",
+            "landmarks": [[4, 8, 12, 16, 20]],
+            "threshold": 0.85,
+            "action": "grab_action"
+        },
+        {
+            "id": "release",
+            "name": "Release Gesture",
+            "landmarks": [[4, 8, 12, 16, 20]],
+            "threshold": 0.85,
+            "action": "release_action"
+        }
+    ],
+    "keyboard_gestures": {
+        "copy": {
+            "shortcut": ["ctrl", "c"],
+            "gesture": [0, 1, 1, 0, 0]
+        },
+        "paste": {
+            "shortcut": ["ctrl", "v"],
+            "gesture": [1, 1, 0, 0, 0]
+        },
+        "alt_tab": {
+            "shortcut": ["alt", "tab"],
+            "gesture": [0, 1, 1, 1, 0]
+        },
+        "task_manager": {
+            "shortcut": ["ctrl", "shift", "esc"],
+            "gesture": [1, 1, 1, 0, 0]
+        },
+        "refresh": {
+            "shortcut": ["f5"],
+            "gesture": [0, 0, 0, 0, 1]
+        },
+        "escape": {
+            "shortcut": ["esc"],
+            "gesture": [0, 0, 0, 0, 0]
+        }
+    },
+    "button_gestures": {
+        "button1": [0, 1, 0, 0, 0],
+        "button2": [0, 1, 1, 0, 0],
+        "button3": [1, 1, 1, 0, 0],
+        "button4": [1, 1, 1, 0, 0],
+        "button5": [1, 1, 1, 1, 1],
+        "button6": [0, 0, 0, 0, 0],
+        "quit_controller": [1, 0, 0, 1, 0],
+        "quit_app": [0, 1, 1, 1, 0]
+    },
+    "app_gestures": {
+        "open": {
+            "Chrome": [0, 1, 1, 0, 0],
+            "Notepad": [1, 1, 0, 0, 0],
+            "Calculator": [1, 1, 1, 0, 0]
+        },
+        "close": {
+            "Chrome": [0, 0, 0, 0, 0],
+            "Notepad": [0, 0, 0, 0, 1],
+            "Calculator": [1, 0, 0, 0, 1]
+        }
+    },
+    "app_paths": {
+        "Chrome": "chrome.exe",
+        "Notepad": "notepad.exe",
+        "Calculator": "calc.exe"
+    }
+}
