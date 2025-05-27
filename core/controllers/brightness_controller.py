@@ -1,131 +1,277 @@
 import cv2
+import time
+import threading
 import screen_brightness_control as sbc
-from core.gesture_detector import GestureDetector
+from core.gesture_recognition_manager import GestureRecognitionManager
+from config import settings
 
-class BrightnessController(GestureDetector):
-    """Controller for adjusting screen brightness using hand gestures."""
+class BrightnessController:
+    """
+    Controller for adjusting screen brightness using pinch gestures.
+    
+    This controller uses the centralized GestureRecognitionManager to detect 
+    pinch gestures and adjusts the system brightness based on the distance 
+    between the thumb and index finger.
+    """
     
     def __init__(self):
-        """Initialize the brightness controller with specific thresholds."""
-        super().__init__()
-        # Thresholds for brightness control
-        self.TOLERANCE_UPPER = 20  # Threshold to increase brightness
-        self.TOLERANCE_LOWER = 40  # Threshold to decrease brightness
-        self.action_delay = 0.3    # Time between brightness adjustments
+        """Initializes the BrightnessController instance."""
+        # Get the singleton gesture manager
+        self.gesture_manager = GestureRecognitionManager()
         
-        # Get initial brightness
-        self.current_brightness = sbc.get_brightness()[0]  # Get brightness of first monitor
+        # State variables
+        self.running = False
+        self.display_thread = None
+        self.lock = threading.Lock()
+        
+        # Gesture state
+        self.active_gestures = {}
+        self.gesture_messages = {}
+        self.current_distance = None
+        self.last_brightness_change = 0
+        
+        # Settings
+        self.upper_threshold = settings.BRIGHTNESS_UPPER_THRESHOLD
+        self.lower_threshold = settings.BRIGHTNESS_LOWER_THRESHOLD
+        self.scaling_factor = settings.BRIGHTNESS_SCALING_FACTOR
+        self.action_delay = settings.ACTION_DELAY
+        
+        # Get initial brightness of the primary monitor
+        self.current_brightness = sbc.get_brightness()[0]
+        
+        print("Brightness Controller initialized")
+        print("Press 'q' to exit")
+    
+    def start(self):
+        """
+        Starts the controller and subscribes to the pinch gesture.
+        Initializes camera and processing threads if necessary.
+        """
+        camera_status = self.gesture_manager.get_camera_status()
+        if not camera_status["connected"]:
+            self.gesture_manager.start_camera_with_settings(
+                camera_id=settings.DEFAULT_CAMERA_ID,
+                width=settings.CAMERA_WIDTH,
+                height=settings.CAMERA_HEIGHT
+            )
+        
+        # Subscribe to pinch gesture
+        self.gesture_manager.subscribe_to_gesture("pinch", self.handle_gesture)
+        
+        # Start gesture processing if not already running
+        if not self.gesture_manager._running:
+            self.gesture_manager.start_processing()
+        
+        # Start display thread
+        self.running = True
+        self.display_thread = threading.Thread(target=self.display_loop)
+        self.display_thread.daemon = True
+        self.display_thread.start()
+        
+        print("Brightness Controller started")
+    
+    def stop(self):
+        """
+        Stops the controller and unsubscribes from gesture events.
+        """
+        self.running = False
+        
+        if self.display_thread and self.display_thread.is_alive():
+            self.display_thread.join(timeout=1.0)
+        
+        self.gesture_manager.unsubscribe_from_gesture("pinch")
+        
+        print("Brightness Controller stopped")
+    
+    def handle_gesture(self, event_type, gesture_data):
+        """
+        Callback to handle gesture events from the manager.
+        
+        Args:
+            event_type (str): Type of event ('detected', 'updated', 'ended').
+            gesture_data (dict): Gesture metadata including landmarks.
+        """
+        gesture_id = gesture_data.get("id")
+        
+        with self.lock:
+            if event_type == "detected":
+                # New gesture detected
+                self.active_gestures[gesture_id] = gesture_data
+                self.gesture_messages[gesture_id] = "Brightness control activated"
+                
+            elif event_type == "updated":
+                # Gesture updated — calculate distance and adjust brightness
+                self.active_gestures[gesture_id] = gesture_data
+                landmarks = gesture_data.get("landmarks")
+                if landmarks:
+                    thumb = landmarks.landmark[4]
+                    index = landmarks.landmark[8]
+                    distance = ((thumb.x - index.x) ** 2 + (thumb.y - index.y) ** 2) ** 0.5
+                    
+                    # Scale distance for brightness control
+                    scaled_distance = distance * 100 / self.scaling_factor
+                    self.current_distance = scaled_distance
+                    
+                    current_time = time.time()
+                    if current_time - self.last_brightness_change >= self.action_delay:
+                        self.adjust_brightness(scaled_distance)
+                        self.last_brightness_change = current_time
+                
+            elif event_type == "ended":
+                # Gesture ended
+                if gesture_id in self.active_gestures:
+                    del self.active_gestures[gesture_id]
+                    self.current_distance = None
+                    self.gesture_messages[gesture_id] = "Brightness control deactivated"
+                    threading.Timer(2.0, lambda: self.remove_message(gesture_id)).start()
     
     def adjust_brightness(self, distance):
         """
-        Adjust brightness based on the distance between thumb and index finger.
+        Adjusts the screen brightness based on the finger distance.
         
         Args:
-            distance: The scaled distance between thumb and index finger
+            distance (float): Scaled distance between thumb and index finger.
         """
-        if distance > self.TOLERANCE_UPPER:
-            # Calculate how much to increase brightness based on distance
-            increment = int((distance - self.TOLERANCE_UPPER) / 2)
-            increment = max(1, min(increment, 5))  # Limit between 1 and 5
-            
-            # Ensure brightness doesn't exceed 100%
+        if distance > self.upper_threshold:
+            # Increase brightness
+            increment = min(int((distance - self.upper_threshold) / 2), 5)
             new_brightness = min(100, self.current_brightness + increment)
             if new_brightness != self.current_brightness:
                 sbc.set_brightness(new_brightness)
                 self.current_brightness = new_brightness
-                
-        elif distance < self.TOLERANCE_LOWER:
-            # Calculate how much to decrease brightness based on distance
-            decrement = int((self.TOLERANCE_LOWER - distance) / 2)
-            decrement = max(1, min(decrement, 5))  # Limit between 1 and 5
+                self.set_action_message(f"Increasing brightness ({increment} steps)")
             
-            # Ensure brightness doesn't go below 0%
+        elif distance < self.lower_threshold:
+            # Decrease brightness
+            decrement = min(int((self.lower_threshold - distance) / 2), 5)
             new_brightness = max(0, self.current_brightness - decrement)
             if new_brightness != self.current_brightness:
                 sbc.set_brightness(new_brightness)
                 self.current_brightness = new_brightness
+                self.set_action_message(f"Decreasing brightness ({decrement} steps)")
     
-    def draw_brightness_bar(self, image):
+    def set_action_message(self, message):
         """
-        Draw a bar representing the current brightness level on the image.
+        Sets a temporary action message on screen.
         
         Args:
-            image: The image to draw on
+            message (str): Message to display.
         """
-        # Bar dimensions and position
-        bar_width = 200
-        bar_height = 30
-        bar_x = 50
-        bar_y = 50
-        
-        # Draw bar outline
-        cv2.rectangle(image, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (255, 255, 255), 2)
-        
-        # Draw bar fill based on brightness level
-        filled_width = int(bar_width * self.current_brightness / 100)
-        cv2.rectangle(image, (bar_x, bar_y), (bar_x + filled_width, bar_y + bar_height), (0, 255, 255), -1)
-        
-        # Add text with brightness percentage
-        cv2.putText(image, f"Brightness: {self.current_brightness}%", (bar_x, bar_y - 10), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        with self.lock:
+            self.gesture_messages["action"] = message
+            threading.Timer(2.0, lambda: self.remove_message("action")).start()
     
-    def run(self):
-        """Run the brightness control loop."""
-        if not self.start_camera():
-            print("Failed to open webcam")
-            return
+    def remove_message(self, message_id):
+        """
+        Removes a message from display after a timeout.
+        
+        Args:
+            message_id (str): ID of the message to remove.
+        """
+        with self.lock:
+            if message_id in self.gesture_messages:
+                del self.gesture_messages[message_id]
+    
+    def display_brightness_bar(self, frame):
+        """
+        Renders a brightness bar overlay on the frame.
+        
+        Args:
+            frame (numpy.ndarray): The current video frame.
+        """
+        if self.current_distance is not None:
+            bar_width = int(frame.shape[1] * 0.3)
+            bar_height = 20
+            bar_x = int((frame.shape[1] - bar_width) / 2)
+            bar_y = frame.shape[0] - 60
             
-        try:
-            while True:
-                image, results = self.process_frame()
-                if image is None:
-                    break
-                
-                # Get image dimensions
-                frame_height, frame_width, _ = image.shape
-                
-                # Draw brightness bar
-                self.draw_brightness_bar(image)
-                
-                # Initialize finger positions
-                thumb_pos = index_pos = None
-                
-                # Process hand landmarks if hands are detected
-                if results.multi_hand_landmarks:
-                    for hand in results.multi_hand_landmarks:
-                        self.drawing_utils.draw_landmarks(image, hand)
-                        landmarks = hand.landmark
-                        
-                        # Get thumb and index finger positions
-                        for id, landmark in enumerate(landmarks):
-                            x, y = self.get_landmark_coordinates(landmark, frame_width, frame_height)
-                            
-                            if id == 8:  # Index finger tip
-                                cv2.circle(image, (x, y), 8, (0, 255, 255), 3)
-                                index_pos = (x, y)
-                                
-                            if id == 4:  # Thumb tip
-                                cv2.circle(image, (x, y), 8, (0, 0, 255), 3)
-                                thumb_pos = (x, y)
-                        
-                        # If both thumb and index are detected
-                        if thumb_pos and index_pos:
-                            # Draw line between fingers
-                            cv2.line(image, index_pos, thumb_pos, (0, 0, 255), 5)
-                            
-                            # Calculate distance and scale it
-                            distance = self.calculate_distance(index_pos, thumb_pos) // 4
-                            
-                            # Adjust brightness if enough time has passed since last adjustment
-                            if self.can_perform_action(self.action_delay):
-                                self.adjust_brightness(distance)
-                
-                # Display the image
-                cv2.imshow('Brightness Control Gestures', image)
-                
-                # Exit on ESC key
-                if cv2.waitKey(10) == 27:
-                    break
-                    
-        finally:
-            self.stop_camera()
+            # Background bar
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height),
+                          (100, 100, 100), -1)
+            
+            # Brightness level indicator
+            indicator_width = int(bar_width * self.current_brightness / 100)
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + indicator_width, bar_y + bar_height),
+                          (0, 255, 255), -1)
+            
+            # Brightness label
+            cv2.putText(frame, f"Brightness: {self.current_brightness}%",
+                        (bar_x, bar_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    def display_instructions(self, frame):
+        """
+        Displays usage instructions on screen.
+        
+        Args:
+            frame (numpy.ndarray): The current video frame.
+        """
+        y_pos = 30
+        cv2.putText(frame, "BRIGHTNESS CONTROL:", (10, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+        y_pos += 30
+        instructions = [
+            "Pinch thumb and index to activate",
+            "Spread fingers to increase brightness",
+            "Pinch tighter to decrease brightness",
+            "Hold distance to maintain brightness"
+        ]
+        
+        for instruction in instructions:
+            cv2.putText(frame, instruction, (10, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_pos += 25
+    
+    def display_messages(self, frame):
+        """
+        Displays action or status messages at the bottom of the frame.
+        
+        Args:
+            frame (numpy.ndarray): The current video frame.
+        """
+        with self.lock:
+            y_pos = frame.shape[0] - 30
+            for message in self.gesture_messages.values():
+                cv2.putText(frame, message, (10, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                y_pos -= 30
+    
+    def display_loop(self):
+        """
+        Main UI loop to continuously display camera feed and overlays.
+        """
+        while self.running:
+            image, _ = self.gesture_manager.process_frame()
+            if image is None:
+                time.sleep(0.01)
+                continue
+            
+            # Render overlays
+            self.display_instructions(image)
+            self.display_brightness_bar(image)
+            self.display_messages(image)
+            
+            # Show the frame
+            cv2.imshow('Gesture-Based Brightness Control', image)
+            
+            # Exit on 'q' key
+            if cv2.waitKey(5) & 0xFF == ord('q'):
+                break
+        
+        cv2.destroyAllWindows()
+
+# Example usage
+def main():
+    controller = BrightnessController()
+    try:
+        controller.start()
+        # Main loop runs in the display thread
+        while True:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("Program interrupted by user")
+    finally:
+        controller.stop()
+
+if __name__ == "__main__":
+    main()

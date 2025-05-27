@@ -3,146 +3,234 @@ import time
 import subprocess
 import ctypes
 import threading
-from core.gesture_detector import GestureDetector
+from core.gesture_recognition_manager import GestureRecognitionManager
+from config import settings
 
-class SystemController(GestureDetector):
-    """Controller for system operations using hand gestures."""
+class SystemController:
+    """Controller for system operations using hand gestures.
+    
+    This controller uses a centralized GestureRecognitionManager to detect gestures 
+    and execute system actions such as locking, shutdown, restart, and sleep.
+    """
     
     def __init__(self):
-        """Initialize the system control controller."""
-        super().__init__()
+        """Initialize the system controller."""
+        # Get the singleton instance of gesture recognition manager
+        self.gesture_manager = GestureRecognitionManager()
         
-        # Gesture tracking variables
+        # State variables
+        self.running = False
+        self.display_thread = None
+        self.lock = threading.Lock()
+        
+        # Gesture state
+        self.active_gestures = {}
+        self.gesture_messages = {}
         self.current_gesture = None
         self.gesture_start_time = 0
         self.gesture_duration = 0
-        self.required_duration = 3.0  # Seconds to hold gesture before action
+        
+        # Configuration durations from settings
+        self.required_duration = settings.SYSTEM_GESTURE_DURATION
+        self.confirmation_duration = settings.SYSTEM_CONFIRMATION_DURATION
+        self.message_duration = settings.SYSTEM_MESSAGE_DURATION
+        
+        # Confirmation state
         self.confirmation_active = False
         self.confirmation_action = None
+        self.countdown_active = False
+        self.countdown_start_time = 0
         
-        # Action status
-        self.action_message = ""
-        self.action_message_time = 0
-        self.action_message_duration = 3.0  # Seconds to display action message
-        
-        # Define gestures and their corresponding actions
+        # Gesture definitions mapped to human-readable descriptions
         self.gestures = {
             "Lock": "L shape (thumb and index extended)",
             "Shutdown": "Closed fist",
-            "Restart": "Two fingers extended (index and middle)",
-            "Sleep": "Five fingers extended (open hand)"
+            "Restart": "Index and middle fingers extended",
+            "Sleep": "All fingers extended"
         }
         
-        # Countdown timer for confirmations
-        self.countdown_active = False
-        self.countdown_start_time = 0
-        self.countdown_duration = 5  # 5 seconds countdown
-        
-        # Thread lock for safe access to shared variables
-        self.lock = threading.Lock()
-        
-        print("System Control Controller initialized")
+        print("System Controller initialized")
         print("Press 'q' to quit")
     
-    def detect_gesture(self, hand_landmarks):
-        """Detect which gesture is being performed based on finger positions"""
-        # Get fingertip landmarks
-        fingertips = [4, 8, 12, 16, 20]  # Thumb, index, middle, ring, pinky
-        finger_states = []
+    def start(self):
+        """Start the controller and subscribe to gestures."""
+        # Start camera if not already running
+        camera_status = self.gesture_manager.get_camera_status()
+        if not camera_status["connected"]:
+            self.gesture_manager.start_camera_with_settings(
+                camera_id=settings.DEFAULT_CAMERA_ID,
+                width=settings.CAMERA_WIDTH,
+                height=settings.CAMERA_HEIGHT
+            )
         
-        # Check if fingers are extended
-        for tip_id in fingertips:
-            # For thumb, compare x-coordinate with the base of the thumb
-            if tip_id == 4:
-                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
-                    finger_states.append(1)  # Extended
-                else:
-                    finger_states.append(0)  # Not extended
-            # For other fingers, compare y-coordinate with the middle joint
+        # Subscribe to relevant gestures with their handler
+        self.gesture_manager.subscribe_to_gesture("fist", self.handle_gesture)    # Shutdown
+        self.gesture_manager.subscribe_to_gesture("palm", self.handle_gesture)    # Sleep
+        self.gesture_manager.subscribe_to_gesture("victory", self.handle_gesture) # Restart
+        self.gesture_manager.subscribe_to_gesture("pinch", self.handle_gesture)   # Lock
+        
+        # Start gesture processing if not already running
+        if not self.gesture_manager._running:
+            self.gesture_manager.start_processing()
+        
+        # Start the display thread for UI feedback
+        self.running = True
+        self.display_thread = threading.Thread(target=self.display_loop)
+        self.display_thread.daemon = True
+        self.display_thread.start()
+        
+        print("System Controller started")
+    
+    def stop(self):
+        """Stop the controller and unsubscribe from gestures."""
+        self.running = False
+        
+        if self.display_thread and self.display_thread.is_alive():
+            self.display_thread.join(timeout=1.0)
+        
+        # Unsubscribe from all gestures
+        self.gesture_manager.unsubscribe_from_gesture("fist")
+        self.gesture_manager.unsubscribe_from_gesture("palm")
+        self.gesture_manager.unsubscribe_from_gesture("victory")
+        self.gesture_manager.unsubscribe_from_gesture("pinch")
+        
+        print("System Controller stopped")
+    
+    def handle_gesture(self, event_type, gesture_data):
+        """Handle gesture events received from the manager.
+        
+        Args:
+            event_type (str): Type of event ('detected', 'updated', 'ended').
+            gesture_data (dict): Data related to the detected gesture.
+        """
+        gesture_id = gesture_data.get("id")
+        
+        with self.lock:
+            if self.confirmation_active:
+                if event_type == "detected":
+                    # If the same gesture is detected during confirmation, perform action
+                    if gesture_id == self.confirmation_action:
+                        self.perform_action(gesture_id)
+                        self.cancel_confirmation()
+                    # If a different gesture is detected, cancel confirmation
+                    else:
+                        self.cancel_confirmation()
             else:
-                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
-                    finger_states.append(1)  # Extended
-                else:
-                    finger_states.append(0)  # Not extended
-        
-        # Identify gestures based on finger states
-        if finger_states == [1, 1, 0, 0, 0]:  # L shape (thumb and index extended)
-            return "Lock"
-        elif finger_states == [0, 0, 0, 0, 0]:  # Closed fist
-            return "Shutdown"
-        elif finger_states == [0, 1, 1, 0, 0]:  # Two fingers extended (index and middle)
-            return "Restart"
-        elif finger_states == [1, 1, 1, 1, 1]:  # Five fingers extended (open hand)
-            return "Sleep"
-        else:
-            return None
+                if event_type == "detected":
+                    # New gesture detected, start tracking
+                    self.active_gestures[gesture_id] = gesture_data
+                    self.gesture_messages[gesture_id] = f"Detecting: {gesture_id}"
+                    
+                    self.current_gesture = gesture_id
+                    self.gesture_start_time = time.time()
+                    self.gesture_duration = 0
+                    
+                elif event_type == "updated":
+                    # Gesture updated, update duration and check if threshold met
+                    self.active_gestures[gesture_id] = gesture_data
+                    if self.current_gesture:
+                        self.gesture_duration = time.time() - self.gesture_start_time
+                        
+                        if self.gesture_duration >= self.required_duration:
+                            self.start_confirmation(gesture_id)
+                            self.current_gesture = None
+                            self.gesture_duration = 0
+                
+                elif event_type == "ended":
+                    # Gesture ended, clear tracking
+                    if gesture_id in self.active_gestures:
+                        del self.active_gestures[gesture_id]
+                        self.current_gesture = None
+                        self.gesture_duration = 0
+    
+    def perform_action(self, gesture_id):
+        """Execute the system action corresponding to the gesture."""
+        try:
+            if gesture_id == "pinch":
+                self.lock_computer()
+            elif gesture_id == "fist":
+                self.shutdown_computer()
+            elif gesture_id == "victory":
+                self.restart_computer()
+            elif gesture_id == "palm":
+                self.sleep_computer()
+        except Exception as e:
+            self.set_action_message(f"Error executing action: {e}")
     
     def lock_computer(self):
-        """Lock the computer screen"""
-        with self.lock:
-            self.action_message = "Computer Locked"
-            self.action_message_time = time.time()
-        
-        # Use ctypes to lock Windows
+        """Lock the computer."""
+        self.set_action_message("Locking computer")
         ctypes.windll.user32.LockWorkStation()
     
     def shutdown_computer(self):
-        """Shutdown the computer"""
-        with self.lock:
-            self.action_message = "Computer Shutting Down"
-            self.action_message_time = time.time()
-        
-        # Use subprocess to shutdown Windows
+        """Shutdown the computer."""
+        self.set_action_message("Shutting down computer")
         subprocess.call(['shutdown', '/s', '/t', '1'])
     
     def restart_computer(self):
-        """Restart the computer"""
-        with self.lock:
-            self.action_message = "Computer Restarting"
-            self.action_message_time = time.time()
-        
-        # Use subprocess to restart Windows
+        """Restart the computer."""
+        self.set_action_message("Restarting computer")
         subprocess.call(['shutdown', '/r', '/t', '1'])
     
     def sleep_computer(self):
-        """Put the computer to sleep mode"""
-        with self.lock:
-            self.action_message = "Computer Going to Sleep"
-            self.action_message_time = time.time()
-        
-        # Use subprocess to put Windows to sleep
-        subprocess.call(['powershell', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState("Suspend", $false, $false)'])
-    
-    def perform_action(self, gesture):
-        """Execute the corresponding system action based on the detected gesture"""
-        if gesture == "Lock":
-            self.lock_computer()
-        elif gesture == "Shutdown":
-            self.shutdown_computer()
-        elif gesture == "Restart":
-            self.restart_computer()
-        elif gesture == "Sleep":
-            self.sleep_computer()
+        """Put the computer into sleep mode."""
+        self.set_action_message("Entering sleep mode")
+        subprocess.call(['powershell', '-Command', 
+                       'Add-Type -AssemblyName System.Windows.Forms; '
+                       '[System.Windows.Forms.Application]::SetSuspendState("Suspend", $false, $false)'])
     
     def start_confirmation(self, action):
-        """Start the confirmation process for critical actions"""
+        """Start confirmation process for critical actions.
+        
+        Args:
+            action (str): The action requiring confirmation.
+        """
         with self.lock:
             self.confirmation_active = True
             self.confirmation_action = action
             self.countdown_active = True
             self.countdown_start_time = time.time()
+            self.set_action_message(f"Confirm {action}? Repeat gesture to confirm")
     
     def cancel_confirmation(self):
-        """Cancel the confirmation process"""
+        """Cancel the confirmation process."""
         with self.lock:
             self.confirmation_active = False
             self.confirmation_action = None
             self.countdown_active = False
+            self.set_action_message("Action cancelled")
+    
+    def set_action_message(self, message):
+        """Set the action message to display on screen.
+        
+        Args:
+            message (str): The message text.
+        """
+        with self.lock:
+            self.gesture_messages["action"] = message
+            # Schedule message removal after duration
+            threading.Timer(self.message_duration, 
+                          lambda: self.remove_message("action")).start()
+        print(message)
+    
+    def remove_message(self, message_id):
+        """Remove a message after a timeout.
+        
+        Args:
+            message_id (str): The message identifier to remove.
+        """
+        with self.lock:
+            if message_id in self.gesture_messages:
+                del self.gesture_messages[message_id]
     
     def display_instructions(self, frame):
-        """Display the list of available gestures and their functions"""
+        """Display available gestures and their functions on the frame.
+        
+        Args:
+            frame (ndarray): The image frame to draw on.
+        """
         y_pos = 30
-        cv2.putText(frame, "SYSTEM CONTROL GESTURES:", (10, y_pos), 
+        cv2.putText(frame, "SYSTEM CONTROLS:", (10, y_pos), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
         y_pos += 30
@@ -151,15 +239,13 @@ class SystemController(GestureDetector):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             y_pos += 25
     
-    def display_action_message(self, frame):
-        """Display the current action message"""
-        if time.time() - self.action_message_time < self.action_message_duration:
-            cv2.putText(frame, self.action_message, (10, frame.shape[0] - 20), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-    
-    def display_gesture_progress(self, frame, gesture):
-        """Display progress bar for gesture duration"""
-        if gesture and self.gesture_duration > 0:
+    def display_gesture_progress(self, frame):
+        """Display progress bar indicating the duration of the detected gesture.
+        
+        Args:
+            frame (ndarray): The image frame to draw on.
+        """
+        if self.current_gesture and self.gesture_duration > 0:
             progress = min(self.gesture_duration / self.required_duration, 1.0)
             bar_width = int(frame.shape[1] * 0.6)
             bar_height = 20
@@ -170,17 +256,21 @@ class SystemController(GestureDetector):
             cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
                           (100, 100, 100), -1)
             
-            # Draw progress bar
+            # Draw progress portion
             progress_width = int(bar_width * progress)
             cv2.rectangle(frame, (bar_x, bar_y), (bar_x + progress_width, bar_y + bar_height), 
                           (0, 255, 0), -1)
             
-            # Draw text
-            cv2.putText(frame, f"Detecting: {gesture} ({int(progress * 100)}%)", 
+            # Draw progress text
+            cv2.putText(frame, f"Detecting: {self.current_gesture} ({int(progress * 100)}%)", 
                         (bar_x, bar_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     
     def display_confirmation(self, frame):
-        """Display confirmation dialog for critical actions"""
+        """Display confirmation dialog for critical actions.
+        
+        Args:
+            frame (ndarray): The image frame to draw on.
+        """
         if self.confirmation_active:
             # Create semi-transparent overlay
             overlay = frame.copy()
@@ -195,107 +285,77 @@ class SystemController(GestureDetector):
                         cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
             
             # Display instructions
-            cv2.putText(frame, "Show same gesture again to confirm", 
+            cv2.putText(frame, "Repeat gesture to confirm", 
                         (100, frame.shape[0] // 2), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
             
-            cv2.putText(frame, "Any other gesture or wait to cancel", 
+            cv2.putText(frame, "Any other gesture to cancel", 
                         (100, frame.shape[0] // 2 + 30), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
             
-            # Display countdown
+            # Show countdown timer
             if self.countdown_active:
                 elapsed = time.time() - self.countdown_start_time
-                remaining = max(0, self.countdown_duration - elapsed)
+                remaining = max(0, self.confirmation_duration - elapsed)
                 
                 if remaining == 0:
                     self.cancel_confirmation()
                 else:
-                    cv2.putText(frame, f"Canceling in {int(remaining)}s", 
+                    cv2.putText(frame, f"Cancelling in {int(remaining)}s", 
                                 (100, frame.shape[0] // 2 + 70), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     
-    def run(self):
-        """Main loop to capture video and process hand gestures"""
-        if not self.start_camera():
-            print("Failed to open webcam")
-            return
+    def display_messages(self, frame):
+        """Display action messages on the frame.
         
-        try:
-            while True:
-                image, results = self.process_frame()
-                if image is None:
-                    break
-                
-                # Display instructions
-                self.display_instructions(image)
-                
-                # Display action message if any
-                self.display_action_message(image)
-                
-                # Handle confirmation dialog if active
-                if self.confirmation_active:
-                    self.display_confirmation(image)
-                    
-                    # If hands are detected during confirmation
-                    if results.multi_hand_landmarks:
-                        for hand_landmarks in results.multi_hand_landmarks:
-                            # Draw hand landmarks
-                            self.drawing_utils.draw_landmarks(
-                                image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
-                            
-                            # Detect gesture
-                            detected_gesture = self.detect_gesture(hand_landmarks)
-                            
-                            # If the same gesture is detected, confirm the action
-                            if detected_gesture == self.confirmation_action:
-                                self.perform_action(detected_gesture)
-                                self.cancel_confirmation()
-                            # If a different gesture is detected, cancel the confirmation
-                            elif detected_gesture is not None:
-                                self.cancel_confirmation()
-                else:
-                    # If hands are detected
-                    if results.multi_hand_landmarks:
-                        for hand_landmarks in results.multi_hand_landmarks:
-                            # Draw hand landmarks
-                            self.drawing_utils.draw_landmarks(
-                                image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
-                            
-                            # Detect gesture
-                            detected_gesture = self.detect_gesture(hand_landmarks)
-                            
-                            # Track gesture duration
-                            current_time = time.time()
-                            if detected_gesture:
-                                if detected_gesture == self.current_gesture:
-                                    self.gesture_duration = current_time - self.gesture_start_time
-                                else:
-                                    self.current_gesture = detected_gesture
-                                    self.gesture_start_time = current_time
-                                    self.gesture_duration = 0
-                                
-                                # Display gesture progress
-                                self.display_gesture_progress(image, detected_gesture)
-                                
-                                # If gesture held long enough, start confirmation for critical actions
-                                if self.gesture_duration >= self.required_duration:
-                                    self.start_confirmation(detected_gesture)
-                                    self.current_gesture = None
-                                    self.gesture_duration = 0
-                            else:
-                                self.current_gesture = None
-                                self.gesture_duration = 0
-                    else:
-                        self.current_gesture = None
-                        self.gesture_duration = 0
-                
-                # Display the frame
-                cv2.imshow('System Control with Hand Gestures', image)
-                
-                # Exit on 'q' key press
-                if cv2.waitKey(5) & 0xFF == ord('q'):
-                    break
+        Args:
+            frame (ndarray): The image frame to draw on.
+        """
+        with self.lock:
+            y_pos = frame.shape[0] - 30
+            for message in self.gesture_messages.values():
+                cv2.putText(frame, message, (10, y_pos), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                y_pos -= 30
+    
+    def display_loop(self):
+        """Main loop to display the user interface."""
+        while self.running:
+            # Get current frame from gesture manager
+            image, _ = self.gesture_manager.process_frame()
+            if image is None:
+                time.sleep(0.01)
+                continue
+            
+            # Overlay UI elements on the frame
+            self.display_instructions(image)
+            self.display_gesture_progress(image)
+            self.display_confirmation(image)
+            self.display_messages(image)
+            
+            # Show the frame in a window
+            cv2.imshow('Gesture-based System Control', image)
+            
+            # Exit on 'q' key press
+            if cv2.waitKey(5) & 0xFF == ord('q'):
+                break
         
-        finally:
-            self.stop_camera()
+        # Cleanup OpenCV windows
+        cv2.destroyAllWindows()
+
+# Example usage
+def main():
+    """Example main function to run the SystemController."""
+    controller = SystemController()
+    try:
+        controller.start()
+        # Main loop runs in the display thread
+        while True:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("Program interrupted by user")
+    finally:
+        controller.stop()
+
+if __name__ == "__main__":
+    main()

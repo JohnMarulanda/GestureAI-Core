@@ -1,93 +1,263 @@
 import cv2
+import time
 import pyautogui
-from core.gesture_detector import GestureDetector
+import threading
+from core.gesture_recognition_manager import GestureRecognitionManager
+from config import settings
 
-class VolumeController(GestureDetector):
-    """Controller for adjusting system volume using hand gestures."""
-    
+class VolumeController:
+    """Controller to adjust system volume using gestures.
+
+    This controller uses the centralized GestureRecognitionManager to
+    detect gestures and adjust the system volume based on the distance
+    between the thumb and index finger.
+    """
+
     def __init__(self):
-        """Initialize the volume controller with specific thresholds."""
-        super().__init__()
-        # Thresholds for volume control
-        self.TOLERANCE_UPPER = 20  # Threshold to increase volume
-        self.TOLERANCE_LOWER = 40  # Threshold to decrease volume
-        self.action_delay = 0.3    # Time between volume adjustments
-    
-    def adjust_volume(self, distance):
-        """
-        Adjust volume based on the distance between thumb and index finger.
-        
+        """Initializes the volume controller."""
+        # Get the singleton instance of the gesture recognition manager
+        self.gesture_manager = GestureRecognitionManager()
+
+        # State variables
+        self.running = False
+        self.display_thread = None
+        self.lock = threading.Lock()
+
+        # Gesture-related state
+        self.active_gestures = {}
+        self.gesture_messages = {}
+        self.current_distance = None
+        self.last_volume_change = 0
+
+        # Configuration parameters from settings
+        self.upper_threshold = settings.VOLUME_UPPER_THRESHOLD
+        self.lower_threshold = settings.VOLUME_LOWER_THRESHOLD
+        self.scaling_factor = settings.VOLUME_SCALING_FACTOR
+        self.action_delay = settings.ACTION_DELAY
+
+        print("Volume Controller initialized")
+        print("Press 'q' to quit")
+
+    def start(self):
+        """Starts the controller and subscribes to gestures."""
+        # Start the camera if not already started
+        camera_status = self.gesture_manager.get_camera_status()
+        if not camera_status["connected"]:
+            self.gesture_manager.start_camera_with_settings(
+                camera_id=settings.DEFAULT_CAMERA_ID,
+                width=settings.CAMERA_WIDTH,
+                height=settings.CAMERA_HEIGHT
+            )
+
+        # Subscribe to the "pinch" gesture for volume control
+        self.gesture_manager.subscribe_to_gesture("pinch", self.handle_gesture)
+
+        # Start gesture processing if not already running
+        if not self.gesture_manager._running:
+            self.gesture_manager.start_processing()
+
+        # Start the display thread to show UI
+        self.running = True
+        self.display_thread = threading.Thread(target=self.display_loop)
+        self.display_thread.daemon = True
+        self.display_thread.start()
+
+        print("Volume Controller started")
+
+    def stop(self):
+        """Stops the controller and unsubscribes from gestures."""
+        self.running = False
+
+        if self.display_thread and self.display_thread.is_alive():
+            self.display_thread.join(timeout=1.0)
+
+        # Unsubscribe from the "pinch" gesture
+        self.gesture_manager.unsubscribe_from_gesture("pinch")
+
+        print("Volume Controller stopped")
+
+    def handle_gesture(self, event_type, gesture_data):
+        """Handles gesture events received from the manager.
+
         Args:
-            distance: The scaled distance between thumb and index finger
+            event_type (str): Type of event ('detected', 'updated', 'ended').
+            gesture_data (dict): Data about the gesture.
         """
-        if distance > self.TOLERANCE_UPPER:
-            # Calculate how many times to increase volume based on distance
-            times_to_increase = int((distance - self.TOLERANCE_UPPER) / 2)
-            times_to_increase = max(1, min(times_to_increase, 5))  # Limit between 1 and 5
-            for _ in range(times_to_increase):
+        gesture_id = gesture_data.get("id")
+
+        with self.lock:
+            if event_type == "detected":
+                # New gesture detected
+                self.active_gestures[gesture_id] = gesture_data
+                self.gesture_messages[gesture_id] = "Volume control activated"
+
+            elif event_type == "updated":
+                # Update gesture data and adjust volume accordingly
+                self.active_gestures[gesture_id] = gesture_data
+                landmarks = gesture_data.get("landmarks")
+                if landmarks:
+                    # Calculate distance between thumb (landmark 4) and index finger (landmark 8)
+                    thumb = landmarks.landmark[4]
+                    index = landmarks.landmark[8]
+                    distance = ((thumb.x - index.x) ** 2 + (thumb.y - index.y) ** 2) ** 0.5
+
+                    # Scale the distance for volume adjustment
+                    scaled_distance = distance * 100 / self.scaling_factor
+                    self.current_distance = scaled_distance
+
+                    # Adjust volume only if enough time has passed since last change
+                    current_time = time.time()
+                    if current_time - self.last_volume_change >= self.action_delay:
+                        self.adjust_volume(scaled_distance)
+                        self.last_volume_change = current_time
+
+            elif event_type == "ended":
+                # Gesture ended
+                if gesture_id in self.active_gestures:
+                    del self.active_gestures[gesture_id]
+                    self.current_distance = None
+                    self.gesture_messages[gesture_id] = "Volume control deactivated"
+                    # Remove message after 2 seconds
+                    threading.Timer(2.0, lambda: self.remove_message(gesture_id)).start()
+
+    def adjust_volume(self, distance):
+        """Adjusts the system volume based on the distance between fingers.
+
+        Args:
+            distance (float): Scaled distance between thumb and index finger.
+        """
+        if distance > self.upper_threshold:
+            # Increase volume
+            times = min(int((distance - self.upper_threshold) / 2), 5)
+            for _ in range(times):
                 pyautogui.press('volumeup')
-                
-        elif distance < self.TOLERANCE_LOWER:
-            # Calculate how many times to decrease volume based on distance
-            times_to_decrease = int((self.TOLERANCE_LOWER - distance) / 2)
-            times_to_decrease = max(1, min(times_to_decrease, 5))  # Limit between 1 and 5
-            for _ in range(times_to_decrease):
+            self.set_action_message(f"Increasing volume ({times} steps)")
+
+        elif distance < self.lower_threshold:
+            # Decrease volume
+            times = min(int((self.lower_threshold - distance) / 2), 5)
+            for _ in range(times):
                 pyautogui.press('volumedown')
-    
-    def run(self):
-        """Run the volume control loop."""
-        if not self.start_camera():
-            print("Failed to open webcam")
-            return
-            
-        try:
-            while True:
-                image, results = self.process_frame()
-                if image is None:
-                    break
-                
-                # Get image dimensions
-                frame_height, frame_width, _ = image.shape
-                
-                # Initialize finger positions
-                thumb_pos = index_pos = None
-                
-                # Process hand landmarks if hands are detected
-                if results.multi_hand_landmarks:
-                    for hand in results.multi_hand_landmarks:
-                        self.drawing_utils.draw_landmarks(image, hand)
-                        landmarks = hand.landmark
-                        
-                        # Get thumb and index finger positions
-                        for id, landmark in enumerate(landmarks):
-                            x, y = self.get_landmark_coordinates(landmark, frame_width, frame_height)
-                            
-                            if id == 8:  # Index finger tip
-                                cv2.circle(image, (x, y), 8, (0, 255, 255), 3)
-                                index_pos = (x, y)
-                                
-                            if id == 4:  # Thumb tip
-                                cv2.circle(image, (x, y), 8, (0, 0, 255), 3)
-                                thumb_pos = (x, y)
-                        
-                        # If both thumb and index are detected
-                        if thumb_pos and index_pos:
-                            # Draw line between fingers
-                            cv2.line(image, index_pos, thumb_pos, (0, 0, 255), 5)
-                            
-                            # Calculate distance and scale it
-                            distance = self.calculate_distance(index_pos, thumb_pos) // 4
-                            
-                            # Adjust volume if enough time has passed since last adjustment
-                            if self.can_perform_action(self.action_delay):
-                                self.adjust_volume(distance)
-                
-                # Display the image
-                cv2.imshow('Volume Control Gestures', image)
-                
-                # Exit on ESC key
-                if cv2.waitKey(10) == 27:
-                    break
-                    
-        finally:
-            self.stop_camera()
+            self.set_action_message(f"Decreasing volume ({times} steps)")
+
+    def set_action_message(self, message):
+        """Sets a temporary action message to display.
+
+        Args:
+            message (str): The message to display.
+        """
+        with self.lock:
+            self.gesture_messages["action"] = message
+            threading.Timer(2.0, lambda: self.remove_message("action")).start()
+
+    def remove_message(self, message_id):
+        """Removes a message after a delay.
+
+        Args:
+            message_id (str): The ID of the message to remove.
+        """
+        with self.lock:
+            if message_id in self.gesture_messages:
+                del self.gesture_messages[message_id]
+
+    def display_volume_control(self, frame):
+        """Displays the volume control UI on the video frame.
+
+        Args:
+            frame (numpy.ndarray): The current video frame.
+        """
+        if self.current_distance is not None:
+            # Draw the volume bar background
+            bar_width = int(frame.shape[1] * 0.3)
+            bar_height = 20
+            bar_x = int((frame.shape[1] - bar_width) / 2)
+            bar_y = frame.shape[0] - 60
+
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height),
+                          (100, 100, 100), -1)
+
+            # Draw the volume indicator bar proportionally to the current distance
+            normalized_distance = max(0, min(100, self.current_distance))
+            indicator_width = int(bar_width * normalized_distance / 100)
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + indicator_width, bar_y + bar_height),
+                          (0, 255, 0), -1)
+
+            # Display volume percentage text above the bar
+            cv2.putText(frame, f"Volume: {int(normalized_distance)}%",
+                        (bar_x, bar_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    def display_instructions(self, frame):
+        """Displays usage instructions on the video frame.
+
+        Args:
+            frame (numpy.ndarray): The current video frame.
+        """
+        y_pos = 30
+        cv2.putText(frame, "VOLUME CONTROL:", (10, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+        y_pos += 30
+        instructions = [
+            "Pinch thumb and index to activate",
+            "Separate fingers to increase volume",
+            "Bring fingers closer to decrease volume",
+            "Hold distance to maintain current volume"
+        ]
+
+        for instruction in instructions:
+            cv2.putText(frame, instruction, (10, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_pos += 25
+
+    def display_messages(self, frame):
+        """Displays status and action messages on the video frame.
+
+        Args:
+            frame (numpy.ndarray): The current video frame.
+        """
+        with self.lock:
+            y_pos = frame.shape[0] - 30
+            for message in self.gesture_messages.values():
+                cv2.putText(frame, message, (10, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                y_pos -= 30
+
+    def display_loop(self):
+        """Main loop to display the user interface."""
+        while self.running:
+            # Get the current frame from gesture manager
+            image, _ = self.gesture_manager.process_frame()
+            if image is None:
+                time.sleep(0.01)
+                continue
+
+            # Display UI elements on the frame
+            self.display_instructions(image)
+            self.display_volume_control(image)
+            self.display_messages(image)
+
+            # Show the frame
+            cv2.imshow('Gesture Volume Control', image)
+
+            # Exit if 'q' is pressed
+            if cv2.waitKey(5) & 0xFF == ord('q'):
+                break
+
+        # Clean up windows after exit
+        cv2.destroyAllWindows()
+
+# Example usage
+def main():
+    controller = VolumeController()
+    try:
+        controller.start()
+        # Main thread stays alive while display runs in background
+        while True:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("Program interrupted by user")
+    finally:
+        controller.stop()
+
+if __name__ == "__main__":
+    main()

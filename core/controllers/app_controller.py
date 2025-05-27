@@ -4,156 +4,193 @@ import subprocess
 import psutil
 import os
 import json
-from core.gesture_detector import GestureDetector
+import threading
+from core.gesture_recognition_manager import GestureRecognitionManager
+from config import settings
 
-class AppController(GestureDetector):
-    """Controller for opening and closing applications using hand gestures."""
+class AppController:
+    """Controlador para abrir y cerrar aplicaciones usando gestos.
+    
+    Este controlador utiliza el GestureRecognitionManager centralizado para el
+    reconocimiento de gestos, eliminando la lógica duplicada de detección.
+    """
     
     def __init__(self):
-        """Initialize the application controller."""
-        super().__init__()
+        """Inicializa el controlador de aplicaciones."""
+        # Obtener la instancia única del gestor de reconocimiento
+        self.gesture_manager = GestureRecognitionManager()
         
-        # Gesture tracking variables
+        # Variables de estado
+        self.running = False
+        self.display_thread = None
+        self.lock = threading.Lock()
+        
+        # Estado de gestos
+        self.active_gestures = {}
+        self.gesture_messages = {}
         self.current_gesture = None
         self.gesture_start_time = 0
         self.gesture_duration = 0
-        self.required_duration = 2.0  # Seconds to hold gesture before action
-        self.confirmation_required = True  # Whether to require confirmation for closing apps
         
-        # Action status
-        self.action_message = ""
-        self.action_message_time = 0
-        self.action_message_duration = 3.0  # Seconds to display action message
+        # Configuración
+        self.required_duration = settings.APP_GESTURE_DURATION
+        self.confirmation_required = settings.APP_CONFIRMATION_REQUIRED
+        self.confirmation_multiplier = settings.APP_CONFIRMATION_MULTIPLIER
+        self.message_duration = settings.SYSTEM_MESSAGE_DURATION
         
-        # Load configuration
+        # Cargar configuración
         self.config_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                                       "config", "app_gestures.json")
+                                       settings.GESTURE_CONFIG_PATH)
         self.load_config()
         
-        # Running applications tracking
+        # Seguimiento de aplicaciones en ejecución
         self.running_apps = {}  # {app_name: process}
+        
+        print("Controlador de aplicaciones inicializado")
     
     def load_config(self):
-        """Load gesture-to-application mappings from config file"""
-        default_config = {
-            "gestures": {
-                "open": {
-                    "Chrome": [0, 1, 1, 0, 0],  # Index and middle finger extended
-                    "Notepad": [1, 1, 0, 0, 0],  # Thumb and index finger extended
-                    "Calculator": [1, 1, 1, 0, 0]  # Thumb, index, and middle finger extended
-                },
-                "close": {
-                    "Chrome": [0, 0, 0, 0, 0],  # Closed fist
-                    "Notepad": [0, 0, 0, 0, 1],  # Pinky finger extended
-                    "Calculator": [1, 0, 0, 0, 1]  # Thumb and pinky extended
+        """Carga la configuración de gestos desde el archivo JSON"""
+        try:
+            with open(self.config_file, 'r') as f:
+                config = json.load(f)
+                self.config = {
+                    "gestures": config.get("app_gestures", {}),
+                    "paths": config.get("app_paths", {})
                 }
-            },
-            "paths": {
-                "Chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-                "Notepad": "notepad.exe",
-                "Calculator": "calc.exe"
-            }
-        }
-        
-        try:
-            # Create config directory if it doesn't exist
-            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
-            
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r') as f:
-                    self.config = json.load(f)
-            else:
-                self.config = default_config
-                self.save_config()
         except Exception as e:
-            print(f"Error loading config: {e}")
-            self.config = default_config
-            self.save_config()
+            print(f"Error cargando configuración: {e}")
+            self.config = {"gestures": {}, "paths": {}}
     
-    def save_config(self):
-        """Save current configuration to file"""
-        try:
-            with open(self.config_file, 'w') as f:
-                json.dump(self.config, f, indent=4)
-        except Exception as e:
-            print(f"Error saving config: {e}")
+    def start(self):
+        """Inicia el controlador y se suscribe a los gestos."""
+        # Iniciar la cámara si no está iniciada
+        camera_status = self.gesture_manager.get_camera_status()
+        if not camera_status["connected"]:
+            self.gesture_manager.start_camera_with_settings(
+                camera_id=settings.DEFAULT_CAMERA_ID,
+                width=settings.CAMERA_WIDTH,
+                height=settings.CAMERA_HEIGHT
+            )
+        
+        # Suscribirse a los gestos configurados
+        for action in self.config["gestures"]:
+            for app_name in self.config["gestures"][action]:
+                gesture_id = f"{action}_{app_name}"
+                self.gesture_manager.subscribe_to_gesture(gesture_id, self.handle_gesture)
+        
+        # Iniciar el procesamiento de gestos si no está en ejecución
+        if not self.gesture_manager._running:
+            self.gesture_manager.start_processing()
+        
+        # Iniciar el hilo de visualización
+        self.running = True
+        self.display_thread = threading.Thread(target=self.display_loop)
+        self.display_thread.daemon = True
+        self.display_thread.start()
+        
+        print("Controlador de aplicaciones iniciado")
+        print("Presiona 'q' para salir, 'c' para alternar confirmación")
     
-    def detect_gesture(self, hand_landmarks):
-        """Detect finger positions and return as a list of 0s and 1s"""
-        # Get fingertip landmarks
-        fingertips = [4, 8, 12, 16, 20]  # Thumb, index, middle, ring, pinky
-        finger_states = []
+    def stop(self):
+        """Detiene el controlador y cancela las suscripciones."""
+        self.running = False
         
-        # Check if fingers are extended
-        for tip_id in fingertips:
-            # For thumb, compare x-coordinate with the base of the thumb
-            if tip_id == 4:
-                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
-                    finger_states.append(1)  # Extended
-                else:
-                    finger_states.append(0)  # Not extended
-            # For other fingers, compare y-coordinate with the middle joint
-            else:
-                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
-                    finger_states.append(1)  # Extended
-                else:
-                    finger_states.append(0)  # Not extended
+        if self.display_thread and self.display_thread.is_alive():
+            self.display_thread.join(timeout=1.0)
         
-        return finger_states
+        # Cancelar suscripciones
+        for action in self.config["gestures"]:
+            for app_name in self.config["gestures"][action]:
+                gesture_id = f"{action}_{app_name}"
+                self.gesture_manager.unsubscribe_from_gesture(gesture_id)
+        
+        print("Controlador de aplicaciones detenido")
     
-    def identify_gesture_action(self, finger_states):
-        """Identify which app to open or close based on the detected gesture"""
-        # Check for open gestures
-        for app_name, gesture in self.config["gestures"]["open"].items():
-            if finger_states == gesture:
-                return "open", app_name
+    def handle_gesture(self, event_type, gesture_data):
+        """Maneja los eventos de gestos recibidos del gestor.
         
-        # Check for close gestures
-        for app_name, gesture in self.config["gestures"]["close"].items():
-            if finger_states == gesture:
-                return "close", app_name
+        Args:
+            event_type: Tipo de evento ('detected', 'updated', 'ended').
+            gesture_data: Datos del gesto.
+        """
+        gesture_id = gesture_data.get("id")
         
-        return None, None
+        with self.lock:
+            if event_type == "detected":
+                # Nuevo gesto detectado
+                self.active_gestures[gesture_id] = gesture_data
+                action, app_name = gesture_id.split("_", 1)
+                self.gesture_messages[gesture_id] = f"Detectando: {action} {app_name}"
+                
+                # Iniciar seguimiento de duración
+                self.current_gesture = (action, app_name)
+                self.gesture_start_time = time.time()
+                self.gesture_duration = 0
+                
+            elif event_type == "updated":
+                # Actualizar gesto y duración
+                self.active_gestures[gesture_id] = gesture_data
+                if self.current_gesture:
+                    self.gesture_duration = time.time() - self.gesture_start_time
+                    
+                    # Verificar si se alcanzó la duración requerida
+                    action, app_name = self.current_gesture
+                    if self.gesture_duration >= self.required_duration:
+                        if action == "open":
+                            self.open_application(app_name)
+                            self.current_gesture = None
+                        elif action == "close":
+                            if not self.confirmation_required or \
+                               self.gesture_duration >= self.required_duration * self.confirmation_multiplier:
+                                self.close_application(app_name)
+                                self.current_gesture = None
+                
+            elif event_type == "ended":
+                # Gesto terminado
+                if gesture_id in self.active_gestures:
+                    del self.active_gestures[gesture_id]
+                    self.current_gesture = None
+                    self.gesture_duration = 0
     
     def open_application(self, app_name):
-        """Open the specified application"""
+        """Abre la aplicación especificada."""
         app_path = self.config["paths"].get(app_name)
         if not app_path:
-            self.set_action_message(f"Error: Path for {app_name} not configured")
+            self.set_action_message(f"Error: Ruta no configurada para {app_name}")
             return False
         
         try:
-            # Check if app is already running
+            # Verificar si la aplicación ya está en ejecución
             if app_name in self.running_apps and self.running_apps[app_name].is_running():
-                self.set_action_message(f"{app_name} is already running")
+                self.set_action_message(f"{app_name} ya está en ejecución")
                 return True
             
-            # Open the application
+            # Abrir la aplicación
             process = subprocess.Popen(app_path)
             self.running_apps[app_name] = psutil.Process(process.pid)
-            self.set_action_message(f"Opened: {app_name}")
+            self.set_action_message(f"Abierto: {app_name}")
             return True
         except Exception as e:
-            self.set_action_message(f"Error opening {app_name}: {e}")
+            self.set_action_message(f"Error abriendo {app_name}: {e}")
             return False
     
     def close_application(self, app_name):
-        """Close the specified application"""
-        # If we have a stored process, try to close it
+        """Cierra la aplicación especificada."""
+        # Si tenemos un proceso almacenado, intentar cerrarlo
         if app_name in self.running_apps:
             try:
                 process = self.running_apps[app_name]
                 if process.is_running():
                     process.terminate()
-                    self.set_action_message(f"Closed: {app_name}")
+                    self.set_action_message(f"Cerrado: {app_name}")
                     del self.running_apps[app_name]
                     return True
                 else:
                     del self.running_apps[app_name]
             except Exception as e:
-                self.set_action_message(f"Error closing stored process for {app_name}: {e}")
+                self.set_action_message(f"Error cerrando proceso de {app_name}: {e}")
         
-        # Try to find the process by name
+        # Intentar encontrar el proceso por nombre
         try:
             found = False
             for proc in psutil.process_iter(['pid', 'name']):
@@ -162,251 +199,147 @@ class AppController(GestureDetector):
                     found = True
             
             if found:
-                self.set_action_message(f"Closed: {app_name}")
+                self.set_action_message(f"Cerrado: {app_name}")
                 return True
             else:
-                self.set_action_message(f"{app_name} is not running")
+                self.set_action_message(f"{app_name} no está en ejecución")
                 return False
         except Exception as e:
-            self.set_action_message(f"Error closing {app_name}: {e}")
+            self.set_action_message(f"Error cerrando {app_name}: {e}")
             return False
     
     def set_action_message(self, message):
-        """Set the action message to display on screen"""
-        self.action_message = message
-        self.action_message_time = time.time()
+        """Establece el mensaje de acción para mostrar en pantalla."""
+        with self.lock:
+            message_id = str(time.time())
+            self.gesture_messages[message_id] = message
+            # Programar la eliminación del mensaje
+            threading.Timer(self.message_duration, 
+                          lambda: self.remove_message(message_id)).start()
         print(message)
     
-    def display_instructions(self, frame):
-        """Display the list of configured gestures and their functions"""
+    def remove_message(self, message_id):
+        """Elimina un mensaje después de su duración."""
+        with self.lock:
+            if message_id in self.gesture_messages:
+                del self.gesture_messages[message_id]
+    
+    def display_loop(self):
+        """Bucle principal para mostrar la interfaz de usuario."""
+        while self.running:
+            # Obtener el frame actual
+            image, _ = self.gesture_manager.process_frame()
+            if image is None:
+                time.sleep(0.01)
+                continue
+            
+            # Mostrar información de gestos activos
+            self.display_active_gestures(image)
+            
+            # Mostrar mensajes
+            self.display_messages(image)
+            
+            # Mostrar instrucciones
+            self.display_instructions(image)
+            
+            # Mostrar barra de progreso si hay un gesto activo
+            if self.current_gesture:
+                self.display_gesture_progress(image)
+            
+            # Mostrar el frame
+            cv2.imshow('Control de Aplicaciones con Gestos', image)
+            
+            # Manejar teclas
+            key = cv2.waitKey(5) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord('c'):
+                self.confirmation_required = not self.confirmation_required
+                self.set_action_message(
+                    f"Confirmación {'activada' if self.confirmation_required else 'desactivada'}")
+        
+        # Cerrar ventanas
+        cv2.destroyAllWindows()
+    
+    def display_active_gestures(self, image):
+        """Muestra información sobre los gestos activos."""
+        with self.lock:
+            y_pos = 30
+            cv2.putText(image, "GESTOS ACTIVOS:", (10, y_pos), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            y_pos += 30
+            for gesture_id, gesture_data in self.active_gestures.items():
+                confidence = gesture_data.get("confidence", 0) * 100
+                action, app_name = gesture_id.split("_", 1)
+                text = f"{action.capitalize()} {app_name}: {confidence:.1f}%"
+                cv2.putText(image, text, (10, y_pos), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                y_pos += 25
+    
+    def display_messages(self, image):
+        """Muestra mensajes de eventos de gestos."""
+        with self.lock:
+            y_pos = image.shape[0] - 60
+            for message in self.gesture_messages.values():
+                cv2.putText(image, message, (10, y_pos), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                y_pos -= 30
+    
+    def display_instructions(self, image):
+        """Muestra instrucciones de uso."""
         y_pos = 30
-        cv2.putText(frame, "APP CONTROL GESTURES:", (10, y_pos), 
+        x_pos = image.shape[1] - 300
+        
+        cv2.putText(image, "GESTOS DE CONTROL:", (x_pos, y_pos), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
-        # Display open gestures
         y_pos += 30
-        cv2.putText(frame, "OPEN:", (10, y_pos), 
+        # Mostrar gestos de apertura
+        cv2.putText(image, "ABRIR:", (x_pos, y_pos), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        for app_name, gesture in self.config["gestures"]["open"].items():
-            y_pos += 25
-            gesture_str = "".join([str(g) for g in gesture])
-            cv2.putText(frame, f"{app_name}: {gesture_str}", (30, y_pos), 
+        y_pos += 25
+        for app_name in self.config["gestures"].get("open", {}):
+            cv2.putText(image, f"- {app_name}", (x_pos + 20, y_pos), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_pos += 20
         
-        # Display close gestures
-        y_pos += 35
-        cv2.putText(frame, "CLOSE:", (10, y_pos), 
+        # Mostrar gestos de cierre
+        y_pos += 10
+        cv2.putText(image, "CERRAR:", (x_pos, y_pos), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        for app_name, gesture in self.config["gestures"]["close"].items():
-            y_pos += 25
-            gesture_str = "".join([str(g) for g in gesture])
-            cv2.putText(frame, f"{app_name}: {gesture_str}", (30, y_pos), 
+        y_pos += 25
+        for app_name in self.config["gestures"].get("close", {}):
+            cv2.putText(image, f"- {app_name}", (x_pos + 20, y_pos), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_pos += 20
     
-    def display_action_message(self, frame):
-        """Display the current action message"""
-        if time.time() - self.action_message_time < self.action_message_duration:
-            cv2.putText(frame, self.action_message, (10, frame.shape[0] - 20), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-    
-    def display_gesture_progress(self, frame, action, app_name):
-        """Display progress bar for gesture duration"""
+    def display_gesture_progress(self, image):
+        """Muestra la barra de progreso para la duración del gesto."""
         if self.gesture_duration > 0:
-            progress = min(self.gesture_duration / self.required_duration, 1.0)
-            bar_width = int(frame.shape[1] * 0.6)
-            bar_height = 20
-            bar_x = int((frame.shape[1] - bar_width) / 2)
-            bar_y = frame.shape[0] - 60
+            action, app_name = self.current_gesture
+            required_time = self.required_duration
+            if action == "close" and self.confirmation_required:
+                required_time *= self.confirmation_multiplier
             
-            # Draw background bar
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
+            progress = min(self.gesture_duration / required_time, 1.0)
+            bar_width = int(image.shape[1] * 0.6)
+            bar_height = 20
+            bar_x = int((image.shape[1] - bar_width) / 2)
+            bar_y = image.shape[0] - 100
+            
+            # Dibujar barra de fondo
+            cv2.rectangle(image, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
                           (100, 100, 100), -1)
             
-            # Draw progress bar
+            # Dibujar barra de progreso
             progress_width = int(bar_width * progress)
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + progress_width, bar_y + bar_height), 
+            cv2.rectangle(image, (bar_x, bar_y), (bar_x + progress_width, bar_y + bar_height), 
                           (0, 255, 0), -1)
             
-            # Draw text
-            cv2.putText(frame, f"Detecting: {action.capitalize()} {app_name} ({int(progress * 100)}%)", 
-                        (bar_x, bar_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    
-    def add_gesture_config(self, action, app_name, app_path, gesture):
-        """Add or update a gesture configuration"""
-        # Ensure the action is valid
-        if action not in ["open", "close"]:
-            return False
-        
-        # Update the gesture configuration
-        self.config["gestures"][action][app_name] = gesture
-        
-        # Update the path if provided
-        if app_path and action == "open":
-            self.config["paths"][app_name] = app_path
-        
-        # Save the updated configuration
-        self.save_config()
-        return True
-    
-    def remove_gesture_config(self, action, app_name):
-        """Remove a gesture configuration"""
-        # Ensure the action is valid
-        if action not in ["open", "close"]:
-            return False
-        
-        # Remove the gesture configuration
-        if app_name in self.config["gestures"][action]:
-            del self.config["gestures"][action][app_name]
-            
-            # If app is completely removed, also remove the path
-            if (app_name not in self.config["gestures"]["open"] and 
-                app_name not in self.config["gestures"]["close"] and
-                app_name in self.config["paths"]):
-                del self.config["paths"][app_name]
-            
-            # Save the updated configuration
-            self.save_config()
-            return True
-        
-        return False
-    
-    def run(self):
-        """Main loop to capture video and process hand gestures"""
-        print("Starting Application Control with Hand Gestures...")
-        print("Press 'q' to quit, 'c' to toggle confirmation, 's' to save current hand position as a new gesture")
-        
-        if not self.start_camera():
-            print("Failed to open webcam")
-            return
-        
-        add_mode = False
-        new_gesture = None
-        new_action = None
-        new_app_name = None
-        
-        try:
-            while True:
-                image, results = self.process_frame()
-                if image is None:
-                    break
-                
-                # Display instructions
-                self.display_instructions(image)
-                
-                # Display action message if any
-                self.display_action_message(image)
-                
-                # If in add mode, display instructions for adding a new gesture
-                if add_mode:
-                    cv2.putText(image, "ADD NEW GESTURE", (image.shape[1] // 2 - 100, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                    
-                    if new_action and new_app_name:
-                        cv2.putText(image, f"Position hand for {new_action} {new_app_name}", 
-                                    (image.shape[1] // 2 - 150, 60), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                        cv2.putText(image, "Press 's' to save, 'q' to cancel", 
-                                    (image.shape[1] // 2 - 150, 90), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                
-                # If hands are detected
-                if results.multi_hand_landmarks:
-                    for hand_landmarks in results.multi_hand_landmarks:
-                        # Draw hand landmarks
-                        self.drawing_utils.draw_landmarks(
-                            image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
-                        
-                        # Detect finger states
-                        finger_states = self.detect_gesture(hand_landmarks)
-                        
-                        # Display finger states
-                        finger_state_str = "".join([str(s) for s in finger_states])
-                        cv2.putText(image, f"Gesture: {finger_state_str}", 
-                                    (10, image.shape[0] - 90), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                        
-                        # If in add mode, store the current gesture
-                        if add_mode and new_action and new_app_name:
-                            new_gesture = finger_states
-                        else:
-                            # Identify action based on gesture
-                            action, app_name = self.identify_gesture_action(finger_states)
-                            
-                            # Track gesture duration
-                            current_time = time.time()
-                            if action and app_name:
-                                if (action, app_name) == self.current_gesture:
-                                    self.gesture_duration = current_time - self.gesture_start_time
-                                else:
-                                    self.current_gesture = (action, app_name)
-                                    self.gesture_start_time = current_time
-                                    self.gesture_duration = 0
-                                
-                                # Display gesture progress
-                                self.display_gesture_progress(image, action, app_name)
-                                
-                                # If gesture held long enough, perform the action
-                                if self.gesture_duration >= self.required_duration:
-                                    if action == "open":
-                                        self.open_application(app_name)
-                                    elif action == "close":
-                                        if not self.confirmation_required or self.gesture_duration >= self.required_duration * 1.5:
-                                            self.close_application(app_name)
-                                    
-                                    self.current_gesture = None
-                                    self.gesture_duration = 0
-                            else:
-                                self.current_gesture = None
-                                self.gesture_duration = 0
-                else:
-                    self.current_gesture = None
-                    self.gesture_duration = 0
-                
-                # Display the frame
-                cv2.imshow('Application Control with Hand Gestures', image)
-                
-                # Handle key presses
-                key = cv2.waitKey(5) & 0xFF
-                if key == ord('q'):
-                    if add_mode:
-                        add_mode = False
-                        new_gesture = None
-                        new_action = None
-                        new_app_name = None
-                    else:
-                        break
-                elif key == ord('c'):
-                    self.confirmation_required = not self.confirmation_required
-                    self.set_action_message(f"Confirmation {'enabled' if self.confirmation_required else 'disabled'}")
-                elif key == ord('s'):
-                    if add_mode and new_gesture and new_action and new_app_name:
-                        # Add the new gesture configuration
-                        app_path = input(f"Enter path for {new_app_name} (leave empty to use default): ")
-                        if not app_path:
-                            app_path = new_app_name + ".exe"
-                        
-                        self.add_gesture_config(new_action, new_app_name, app_path, new_gesture)
-                        self.set_action_message(f"Added {new_action} gesture for {new_app_name}")
-                        
-                        add_mode = False
-                        new_gesture = None
-                        new_action = None
-                        new_app_name = None
-                    else:
-                        add_mode = True
-                        new_action = input("Enter action (open/close): ").lower()
-                        if new_action not in ["open", "close"]:
-                            print("Invalid action. Must be 'open' or 'close'.")
-                            add_mode = False
-                            continue
-                        
-                        new_app_name = input("Enter application name: ")
-                        if not new_app_name:
-                            print("Application name cannot be empty.")
-                            add_mode = False
-                            continue
-        
-        finally:
-            self.stop_camera()
+            # Dibujar texto
+            text = f"Detectando: {action.capitalize()} {app_name} ({int(progress * 100)}%)"
+            cv2.putText(image, text, (bar_x, bar_y - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
