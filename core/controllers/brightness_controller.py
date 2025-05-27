@@ -236,6 +236,74 @@ class BrightnessController:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 y_pos -= 30
     
+    def detect_finger_states(self, hand_landmarks):
+        """
+        Detecta el estado de los dedos (extendido o no) y devuelve una lista de 0s y 1s.
+        
+        Args:
+            hand_landmarks: Los landmarks de la mano detectada.
+            
+        Returns:
+            list: Lista de 5 valores (0 o 1) representando el estado de cada dedo.
+        """
+        fingertips = [4, 8, 12, 16, 20]  # Thumb, index, middle, ring, pinky
+        finger_states = []
+        
+        # Verificar cada dedo
+        for tip_id in fingertips:
+            # Para el pulgar, comparar coordenada x con la base del pulgar
+            if tip_id == 4:
+                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+            # Para otros dedos, comparar coordenada y con la articulación media
+            else:
+                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+        
+        return finger_states
+
+    def display_landmarks(self, frame):
+        """
+        Muestra los landmarks de la mano y el estado de los dedos.
+        
+        Args:
+            frame: Frame donde mostrar los landmarks.
+        """
+        _, results = self.gesture_manager.process_frame()
+        
+        if results and results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                # Dibujar las conexiones entre landmarks
+                self.gesture_manager.drawing_utils.draw_landmarks(
+                    frame,
+                    hand_landmarks,
+                    self.gesture_manager.mp_hands.HAND_CONNECTIONS)
+                
+                # Detectar y mostrar estados de los dedos
+                finger_states = self.detect_finger_states(hand_landmarks)
+                finger_state_str = "".join([str(s) for s in finger_states])
+                cv2.putText(frame, f"Estados: {finger_state_str}", 
+                            (10, frame.shape[0] - 90), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                
+                # Dibujar los puntos de los landmarks
+                for i, landmark in enumerate(hand_landmarks.landmark):
+                    x = int(landmark.x * frame.shape[1])
+                    y = int(landmark.y * frame.shape[0])
+                    
+                    # Dibujar círculo para cada landmark
+                    cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
+                    
+                    # Resaltar las puntas de los dedos
+                    if i in [4, 8, 12, 16, 20]:  # Thumb, Index, Middle, Ring, Pinky tips
+                        cv2.circle(frame, (x, y), 6, (255, 0, 0), -1)
+                        cv2.putText(frame, str(i), (x + 10, y), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+
     def display_loop(self):
         """
         Main UI loop to continuously display camera feed and overlays.
@@ -250,6 +318,7 @@ class BrightnessController:
             self.display_instructions(image)
             self.display_brightness_bar(image)
             self.display_messages(image)
+            self.display_landmarks(image)
             
             # Show the frame
             cv2.imshow('Gesture-Based Brightness Control', image)

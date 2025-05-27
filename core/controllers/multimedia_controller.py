@@ -10,192 +10,114 @@ from config import settings
 
 class MultimediaController:
     """
-    Multimedia controller for performing media operations using hand gestures.
-
-    This controller uses a centralized GestureRecognitionManager to handle gesture detection,
-    avoiding duplicated detection logic.
-
-    It supports gestures for play/pause, volume control, navigation, and mute.
+    Controlador multimedia para realizar operaciones de medios usando gestos.
+    
+    Este controlador permite controlar la reproducción de medios, volumen,
+    navegación y silencio mediante gestos de la mano.
     """
     
     def __init__(self):
-        """Initialize the multimedia controller and prepare required settings."""
-        # Obtain the singleton instance of the gesture recognition manager
+        """
+        Inicializa el controlador multimedia y prepara la configuración necesaria.
+        """
+        # Obtener la instancia del gesture manager
         self.gesture_manager = GestureRecognitionManager()
         
-        # Controller state variables
+        # Variables de estado
         self.running = False
         self.display_thread = None
         self.lock = threading.Lock()
         
-        # Gesture tracking state
-        self.active_gestures = {}           # Currently detected gestures
-        self.gesture_messages = {}          # Messages to display for gestures
-        self.current_gesture = None         # ID of the gesture being tracked for duration
-        self.gesture_start_time = 0         # When the current gesture started
-        self.gesture_duration = 0           # How long the current gesture has lasted
+        # Estado de gestos
+        self.active_gestures = {}
+        self.gesture_messages = {}
+        self.current_gesture = None
+        self.gesture_start_time = 0
+        self.gesture_duration = 0
         
-        # Settings loaded from configuration
-        self.required_duration = settings.MULTIMEDIA_GESTURE_DURATION      # Seconds gesture must be held
-        self.action_cooldown = settings.MULTIMEDIA_ACTION_COOLDOWN          # Minimum delay between actions
+        # Configuración desde settings
+        self.required_duration = settings.MULTIMEDIA_GESTURE_DURATION
+        self.action_cooldown = settings.MULTIMEDIA_ACTION_COOLDOWN
         self.volume_change_threshold = settings.MULTIMEDIA_VOLUME_CHANGE_THRESHOLD
         self.swipe_threshold = settings.MULTIMEDIA_SWIPE_THRESHOLD
-        self.message_duration = settings.MULTIMEDIA_MESSAGE_DURATION        # How long to show messages
+        self.message_duration = settings.MULTIMEDIA_MESSAGE_DURATION
         
-        # Initialize system volume control interface
+        # Inicializar control de volumen del sistema
         devices = AudioUtilities.GetSpeakers()
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
         self.volume = cast(interface, POINTER(IAudioEndpointVolume))
         
-        # Track hand positions to detect movements
+        # Seguimiento de posiciones de la mano
         self.hand_positions = []
-        self.position_history_size = 10    # Number of frames to keep for movement detection
-        
-        # Last time an action was performed to enforce cooldown
+        self.position_history_size = 10
         self.last_action_time = 0
+        
+        # Definir gestos y sus acciones correspondientes
+        self.gestures = {
+            "Play/Pause": "Palm (mano abierta)",
+            "Volume": "Point (dedo índice)",
+            "Navigation": "Victory (dedos V)",
+            "Mute": "Fist (puño cerrado)"
+        }
         
         print("Multimedia controller initialized")
     
-    def start(self):
+    def detect_finger_states(self, hand_landmarks):
         """
-        Start the controller: start the camera if needed, subscribe to gestures,
-        and start the display thread.
-        """
-        # Start camera if not connected
-        camera_status = self.gesture_manager.get_camera_status()
-        if not camera_status["connected"]:
-            self.gesture_manager.start_camera_with_settings(
-                width=settings.CAMERA_WIDTH,
-                height=settings.CAMERA_HEIGHT
-            )
-        
-        # Subscribe to relevant gestures with the event handler
-        self.gesture_manager.subscribe_to_gesture("palm", self.handle_gesture)    # Play/Pause
-        self.gesture_manager.subscribe_to_gesture("point", self.handle_gesture)   # Volume control
-        self.gesture_manager.subscribe_to_gesture("victory", self.handle_gesture) # Navigation
-        self.gesture_manager.subscribe_to_gesture("fist", self.handle_gesture)    # Mute
-        
-        # Start processing if not already running
-        if not self.gesture_manager._running:
-            self.gesture_manager.start_processing()
-        
-        # Start the display and processing loop in a background thread
-        self.running = True
-        self.display_thread = threading.Thread(target=self.display_loop)
-        self.display_thread.daemon = True
-        self.display_thread.start()
-        
-        print("Multimedia controller started")
-        print("Press 'q' to quit")
-    
-    def stop(self):
-        """
-        Stop the controller, unsubscribe from gestures,
-        and stop the display thread.
-        """
-        self.running = False
-        
-        if self.display_thread and self.display_thread.is_alive():
-            self.display_thread.join(timeout=1.0)
-        
-        # Unsubscribe from all gestures
-        self.gesture_manager.unsubscribe_from_gesture("palm")
-        self.gesture_manager.unsubscribe_from_gesture("point")
-        self.gesture_manager.unsubscribe_from_gesture("victory")
-        self.gesture_manager.unsubscribe_from_gesture("fist")
-        
-        print("Multimedia controller stopped")
-    
-    def handle_gesture(self, event_type, gesture_data):
-        """
-        Handle gesture events emitted by the gesture manager.
+        Detecta el estado de los dedos (extendido o no) y devuelve una lista de 0s y 1s.
         
         Args:
-            event_type (str): Type of gesture event ('detected', 'updated', 'ended').
-            gesture_data (dict): Data related to the gesture.
+            hand_landmarks: Los landmarks de la mano detectada.
+            
+        Returns:
+            list: Lista de 5 valores (0 o 1) representando el estado de cada dedo.
         """
-        gesture_id = gesture_data.get("id")
+        fingertips = [4, 8, 12, 16, 20]  # Thumb, index, middle, ring, pinky
+        finger_states = []
         
-        with self.lock:
-            if event_type == "detected":
-                # New gesture detected: track it and start timer
-                self.active_gestures[gesture_id] = gesture_data
-                self.gesture_messages[gesture_id] = f"{gesture_data.get('name')} detected!"
-                
-                self.current_gesture = gesture_id
-                self.gesture_start_time = time.time()
-                self.gesture_duration = 0
-                
-                # Reset hand positions tracking for relevant gestures
-                if gesture_id in ["point", "victory"]:
-                    self.hand_positions = []
-                
-            elif event_type == "updated":
-                # Update gesture info and duration
-                self.active_gestures[gesture_id] = gesture_data
-                if self.current_gesture == gesture_id:
-                    self.gesture_duration = time.time() - self.gesture_start_time
-                    
-                    # Track hand position for volume/navigation gestures
-                    if gesture_id in ["point", "victory"]:
-                        landmarks = gesture_data.get("landmarks")
-                        if landmarks:
-                            hand_x = int(landmarks.landmark[0].x * settings.CAMERA_WIDTH)
-                            hand_y = int(landmarks.landmark[0].y * settings.CAMERA_HEIGHT)
-                            self.hand_positions.append((hand_x, hand_y))
-                            # Limit history size
-                            if len(self.hand_positions) > self.position_history_size:
-                                self.hand_positions.pop(0)
-                    
-                    # Trigger action if gesture held long enough
-                    if self.gesture_duration >= self.required_duration:
-                        self.process_gesture_action(gesture_id)
-                
-            elif event_type == "ended":
-                # Gesture ended: clean up
-                if gesture_id in self.active_gestures:
-                    del self.active_gestures[gesture_id]
-                    if self.current_gesture == gesture_id:
-                        self.current_gesture = None
-                        self.gesture_duration = 0
-                        self.hand_positions = []
-                    
-                    # Show a brief message indicating gesture ended
-                    self.gesture_messages[gesture_id] = f"{gesture_id} ended"
-                    threading.Timer(2.0, lambda: self.remove_message(gesture_id)).start()
+        # Verificar cada dedo
+        for tip_id in fingertips:
+            # Para el pulgar, comparar coordenada x con la base del pulgar
+            if tip_id == 4:
+                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+            # Para otros dedos, comparar coordenada y con la articulación media
+            else:
+                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+        
+        return finger_states
     
-    def process_gesture_action(self, gesture_id):
+    def identify_gesture(self, finger_states):
         """
-        Process and execute the media action corresponding to the recognized gesture.
+        Identifica qué gesto se está realizando basado en los estados de los dedos.
         
         Args:
-            gesture_id (str): The gesture identifier.
+            finger_states: Lista de estados de los dedos.
+            
+        Returns:
+            str: Nombre del gesto identificado o None si no se reconoce.
         """
-        current_time = time.time()
-        
-        # Enforce cooldown to avoid repeated triggers
-        if current_time - self.last_action_time < self.action_cooldown:
-            return
-        
-        if gesture_id == "palm":
-            self.perform_action("play_pause")
-        elif gesture_id == "point":
-            vertical_action = self.detect_vertical_movement()
-            if vertical_action:
-                self.perform_action(vertical_action)
-        elif gesture_id == "victory":
-            swipe_action = self.detect_swipe()
-            if swipe_action:
-                self.perform_action(swipe_action)
-        elif gesture_id == "fist":
-            self.perform_action("mute")
+        if finger_states == [1, 1, 1, 1, 1]:  # Palm
+            return "Play/Pause"
+        elif finger_states == [0, 1, 0, 0, 0]:  # Point
+            return "Volume"
+        elif finger_states == [0, 1, 1, 0, 0]:  # Victory
+            return "Navigation"
+        elif finger_states == [0, 0, 0, 0, 0]:  # Fist
+            return "Mute"
+        return None
     
     def detect_vertical_movement(self):
         """
-        Detect vertical hand movement to control volume.
+        Detecta movimiento vertical de la mano para control de volumen.
         
         Returns:
-            str or None: 'volume_up', 'volume_down', or None if no significant movement.
+            str o None: 'volume_up', 'volume_down', o None si no hay movimiento significativo.
         """
         if len(self.hand_positions) < self.position_history_size:
             return None
@@ -213,10 +135,10 @@ class MultimediaController:
     
     def detect_swipe(self):
         """
-        Detect horizontal swipe gestures for navigation.
+        Detecta gestos de deslizamiento horizontal para navegación.
         
         Returns:
-            str or None: 'swipe_right', 'swipe_left', or None if no significant movement.
+            str o None: 'swipe_right', 'swipe_left', o None si no hay movimiento significativo.
         """
         if len(self.hand_positions) < self.position_history_size:
             return None
@@ -234,246 +156,132 @@ class MultimediaController:
     
     def perform_action(self, action):
         """
-        Execute the multimedia action triggered by a gesture.
+        Ejecuta la acción multimedia correspondiente.
         
         Args:
-            action (str): The action to perform.
+            action: Nombre de la acción a ejecutar.
         """
         if action == "play_pause":
             pyautogui.press('space')
-            self.set_action_message("Play/Pause")
+            self.set_message("Play/Pause")
         elif action == "swipe_right":
             pyautogui.press('right')
-            self.set_action_message("Next/Forward")
+            self.set_message("Siguiente/Adelante")
         elif action == "swipe_left":
             pyautogui.press('left')
-            self.set_action_message("Previous/Back")
+            self.set_message("Anterior/Atrás")
         elif action == "volume_up":
             current_volume = self.volume.GetMasterVolumeLevelScalar()
             new_volume = min(1.0, current_volume + 0.05)
             self.volume.SetMasterVolumeLevelScalar(new_volume, None)
             volume_percent = int(new_volume * 100)
-            self.set_action_message(f"Volume: {volume_percent}%")
+            self.set_message(f"Volumen: {volume_percent}%")
         elif action == "volume_down":
             current_volume = self.volume.GetMasterVolumeLevelScalar()
             new_volume = max(0.0, current_volume - 0.05)
             self.volume.SetMasterVolumeLevelScalar(new_volume, None)
             volume_percent = int(new_volume * 100)
-            self.set_action_message(f"Volume: {volume_percent}%")
+            self.set_message(f"Volumen: {volume_percent}%")
         elif action == "mute":
             is_muted = self.volume.GetMute()
             self.volume.SetMute(not is_muted, None)
-            self.set_action_message("Mute On" if not is_muted else "Mute Off")
+            self.set_message("Silencio Activado" if not is_muted else "Silencio Desactivado")
         
         self.last_action_time = time.time()
     
-    def set_action_message(self, message):
+    def set_message(self, message):
         """
-        Set the message to be displayed on screen for the action performed.
+        Establece un mensaje temporal para mostrar en pantalla.
         
         Args:
-            message (str): The message to display.
+            message: Mensaje a mostrar.
         """
         with self.lock:
             self.gesture_messages["action"] = message
             threading.Timer(self.message_duration, lambda: self.remove_message("action")).start()
+        print(message)
     
     def remove_message(self, message_id):
         """
-        Remove a message after a delay.
+        Elimina un mensaje específico.
         
         Args:
-            message_id (str): Identifier of the message to remove.
+            message_id: Identificador del mensaje a eliminar.
         """
         with self.lock:
             if message_id in self.gesture_messages:
                 del self.gesture_messages[message_id]
     
-    def display_loop(self):
+    def display_instructions(self, frame):
         """
-        Main loop running in a thread to process frames, display UI,
-        and handle quit key press.
-        """
-        while self.running:
-            # Get the current video frame and any other info
-            image, _ = self.gesture_manager.process_frame()
-            if image is None:
-                time.sleep(0.01)
-                continue
-            
-            # Display various UI elements
-            self.display_active_gestures(image)
-            self.display_landmarks(image)
-            self.display_gesture_info(image)
-            self.display_messages(image)
-            self.display_instructions(image)
-            self.display_volume_bar(image)
-            
-            # Show the frame window
-            cv2.imshow('Gesture Multimedia Controller', image)
-            
-            # Quit on 'q' key press
-            if cv2.waitKey(5) & 0xFF == ord('q'):
-                break
-        
-        # Close all OpenCV windows
-        cv2.destroyAllWindows()
-    
-    def display_active_gestures(self, image):
-        """
-        Display currently active gestures and their confidence scores.
+        Muestra la lista de gestos disponibles y sus funciones.
         
         Args:
-            image (np.ndarray): The image/frame to draw on.
+            frame: Frame donde mostrar las instrucciones.
         """
-        with self.lock:
-            y_pos = 30
-            cv2.putText(image, "ACTIVE GESTURES:", (10, y_pos), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            
-            y_pos += 30
-            for gesture_id, gesture_data in self.active_gestures.items():
-                confidence = gesture_data.get("confidence", 0) * 100
-                text = f"{gesture_data.get('name')}: {confidence:.1f}%"
-                cv2.putText(image, text, (10, y_pos), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                y_pos += 25
-    
-    def display_messages(self, image):
-        """
-        Display gesture event messages on the image.
+        y_pos = 30
+        cv2.putText(frame, "CONTROLES MULTIMEDIA:", (10, y_pos), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
-        Args:
-            image (np.ndarray): The image/frame to draw on.
-        """
-        with self.lock:
-            y_pos = image.shape[0] - 60
-            for message in self.gesture_messages.values():
-                cv2.putText(image, message, (10, y_pos), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                y_pos -= 30
+        y_pos += 30
+        for action, description in self.gestures.items():
+            cv2.putText(frame, f"{action}: {description}", (10, y_pos), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_pos += 25
     
     def display_landmarks(self, frame):
-        """Display hand landmarks on the frame.
+        """
+        Muestra los landmarks de la mano y el estado de los dedos.
         
         Args:
-            frame (ndarray): The image frame to draw on.
+            frame: Frame donde mostrar los landmarks.
         """
         with self.lock:
-            for gesture_data in self.active_gestures.values():
-                landmarks = gesture_data.get("landmarks")
-                if landmarks:
-                    # Draw all landmarks
-                    for i, landmark in enumerate(landmarks.landmark):
+            # Obtener el frame actual y los resultados de MediaPipe
+            _, results = self.gesture_manager.process_frame()
+            
+            if results and results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    # Dibujar las conexiones entre landmarks
+                    self.gesture_manager.drawing_utils.draw_landmarks(
+                        frame,
+                        hand_landmarks,
+                        self.gesture_manager.mp_hands.HAND_CONNECTIONS)
+                    
+                    # Detectar y mostrar estados de los dedos
+                    finger_states = self.detect_finger_states(hand_landmarks)
+                    finger_state_str = "".join([str(s) for s in finger_states])
+                    cv2.putText(frame, f"Gesture: {finger_state_str}", 
+                                (10, frame.shape[0] - 90), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                    
+                    # Identificar gesto
+                    gesture = self.identify_gesture(finger_states)
+                    if gesture:
+                        cv2.putText(frame, f"Detected: {gesture}", 
+                                    (10, frame.shape[0] - 60), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    
+                    # Dibujar los puntos de los landmarks
+                    for i, landmark in enumerate(hand_landmarks.landmark):
                         x = int(landmark.x * frame.shape[1])
                         y = int(landmark.y * frame.shape[0])
+                        
+                        # Dibujar círculo para cada landmark
                         cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
                         
-                        # Highlight finger tips
+                        # Resaltar las puntas de los dedos
                         if i in [4, 8, 12, 16, 20]:  # Thumb, Index, Middle, Ring, Pinky tips
                             cv2.circle(frame, (x, y), 6, (255, 0, 0), -1)
                             cv2.putText(frame, str(i), (x + 10, y), 
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
     
-    def get_finger_states(self, gesture_data):
-        """Determine which fingers are up based on landmarks.
-        
-        Returns a list of 0s and 1s indicating finger states:
-        [thumb, index, middle, ring, pinky]
+    def display_volume_bar(self, frame):
+        """
+        Muestra la barra de volumen en el frame.
         
         Args:
-            gesture_data (dict): Gesture data containing landmarks.
-        
-        Returns:
-            list or None: Finger states or None if no landmarks.
-        """
-        landmarks = gesture_data.get("landmarks")
-        if not landmarks:
-            return None
-        
-        fingers = []
-        # Thumb: compare landmark 4 and 3 x positions
-        if landmarks.landmark[4].x > landmarks.landmark[3].x:
-            fingers.append(1)
-        else:
-            fingers.append(0)
-        
-        # Other fingers: tip landmark y < pip landmark y means finger is up
-        for id in range(1, 5):
-            if landmarks.landmark[4*id+4].y < landmarks.landmark[4*id+2].y:
-                fingers.append(1)
-            else:
-                fingers.append(0)
-        
-        return fingers
-    
-    def display_gesture_info(self, frame):
-        """Display current gesture information including finger states.
-        
-        Args:
-            frame (ndarray): The image frame to draw on.
-        """
-        with self.lock:
-            y_pos = frame.shape[0] - 180
-            
-            # Display current gesture as binary array
-            for gesture_id, gesture_data in self.active_gestures.items():
-                finger_states = self.get_finger_states(gesture_data)
-                if finger_states:
-                    # Show gesture name and binary representation
-                    gesture_text = f"Gesture: {gesture_data.get('name', gesture_id)}"
-                    cv2.putText(frame, gesture_text, (10, y_pos), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                    y_pos += 25
-                    
-                    # Show binary array
-                    binary_text = f"Fingers: {finger_states}"
-                    cv2.putText(frame, binary_text, (10, y_pos), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-                    y_pos += 20
-                    
-                    # Show individual finger states with colors
-                    finger_names = ["Thumb", "Index", "Middle", "Ring", "Pinky"]
-                    for i, (name, state) in enumerate(zip(finger_names, finger_states)):
-                        color = (0, 255, 0) if state == 1 else (0, 0, 255)  # Green if open, red if closed
-                        status = "Open" if state == 1 else "Closed"
-                        finger_text = f"{name}: {status}"
-                        cv2.putText(frame, finger_text, (10 + i * 100, y_pos), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-                    y_pos += 30
-    
-    def display_instructions(self, image):
-        """
-        Display usage instructions on the image.
-        
-        Args:
-            image (np.ndarray): The image/frame to draw on.
-        """
-        y_pos = 30
-        x_pos = image.shape[1] - 250
-        
-        cv2.putText(image, "INSTRUCTIONS:", (x_pos, y_pos), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        
-        y_pos += 30
-        instructions = [
-            "Palm: Play/Pause",
-            "Point: Volume Control",
-            "Victory: Previous/Next",
-            "Fist: Mute"
-        ]
-        
-        for instruction in instructions:
-            cv2.putText(image, instruction, (x_pos, y_pos), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            y_pos += 25
-    
-    def display_volume_bar(self, image):
-        """
-        Display a volume level bar on the image.
-        
-        Args:
-            image (np.ndarray): The image/frame to draw on.
+            frame: Frame donde mostrar la barra de volumen.
         """
         try:
             current_volume = self.volume.GetMasterVolumeLevelScalar()
@@ -481,35 +289,180 @@ class MultimediaController:
             
             bar_width = 200
             bar_height = 20
-            bar_x = image.shape[1] - bar_width - 20
+            bar_x = frame.shape[1] - bar_width - 20
             bar_y = 50
             
-            # Draw background bar
-            cv2.rectangle(image, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
+            # Dibujar barra de fondo
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
                           (100, 100, 100), -1)
             
-            # Draw volume fill bar
+            # Dibujar barra de volumen
             filled_width = int(bar_width * current_volume)
-            cv2.rectangle(image, (bar_x, bar_y), (bar_x + filled_width, bar_y + bar_height), 
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + filled_width, bar_y + bar_height), 
                           (0, 255, 0), -1)
             
-            # Draw volume percentage text
-            cv2.putText(image, f"Volume: {volume_percent}%", (bar_x, bar_y - 10), 
+            # Mostrar porcentaje de volumen
+            cv2.putText(frame, f"Volumen: {volume_percent}%", (bar_x, bar_y - 10), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         except:
-            # Fail silently if volume API unavailable
             pass
+    
+    def handle_gesture(self, event_type, gesture_data):
+        """
+        Maneja los eventos de gestos del gesture manager.
+        
+        Args:
+            event_type: Tipo de evento ('detected', 'updated', 'ended').
+            gesture_data: Datos asociados al gesto.
+        """
+        gesture_id = gesture_data.get("id")
+        
+        with self.lock:
+            if event_type == "detected":
+                # Nuevo gesto detectado
+                self.active_gestures[gesture_id] = gesture_data
+                self.current_gesture = gesture_id
+                self.gesture_start_time = time.time()
+                self.gesture_duration = 0
+                
+                # Reiniciar seguimiento de posiciones para gestos relevantes
+                if gesture_id in ["volume", "navigation"]:
+                    self.hand_positions = []
+                
+            elif event_type == "updated":
+                # Gesto actualizado
+                self.active_gestures[gesture_id] = gesture_data
+                if self.current_gesture == gesture_id:
+                    self.gesture_duration = time.time() - self.gesture_start_time
+                    
+                    # Seguir posición de la mano para volumen/navegación
+                    if gesture_id in ["volume", "navigation"]:
+                        landmarks = gesture_data.get("landmarks")
+                        if landmarks:
+                            hand_x = int(landmarks.landmark[0].x * settings.CAMERA_WIDTH)
+                            hand_y = int(landmarks.landmark[0].y * settings.CAMERA_HEIGHT)
+                            self.hand_positions.append((hand_x, hand_y))
+                            if len(self.hand_positions) > self.position_history_size:
+                                self.hand_positions.pop(0)
+                    
+                    # Ejecutar acción si el gesto se mantiene suficiente tiempo
+                    if self.gesture_duration >= self.required_duration:
+                        self.process_gesture_action(gesture_id)
+                
+            elif event_type == "ended":
+                # Gesto terminado
+                if gesture_id in self.active_gestures:
+                    del self.active_gestures[gesture_id]
+                    if self.current_gesture == gesture_id:
+                        self.current_gesture = None
+                        self.gesture_duration = 0
+                        self.hand_positions = []
+    
+    def process_gesture_action(self, gesture_id):
+        """
+        Procesa y ejecuta la acción multimedia correspondiente al gesto reconocido.
+        
+        Args:
+            gesture_id: Identificador del gesto.
+        """
+        current_time = time.time()
+        
+        # Verificar cooldown para prevenir activaciones múltiples
+        if current_time - self.last_action_time < self.action_cooldown:
+            return
+        
+        if gesture_id == "palm":
+            self.perform_action("play_pause")
+        elif gesture_id == "point":
+            vertical_action = self.detect_vertical_movement()
+            if vertical_action:
+                self.perform_action(vertical_action)
+        elif gesture_id == "victory":
+            swipe_action = self.detect_swipe()
+            if swipe_action:
+                self.perform_action(swipe_action)
+        elif gesture_id == "fist":
+            self.perform_action("mute")
+    
+    def start(self):
+        """
+        Inicia el controlador y la suscripción a eventos de gestos.
+        """
+        # Inicializar cámara si es necesario
+        camera_status = self.gesture_manager.get_camera_status()
+        if not camera_status["connected"]:
+            self.gesture_manager.start_camera_with_settings(
+                camera_id=settings.DEFAULT_CAMERA_ID,
+                width=settings.CAMERA_WIDTH,
+                height=settings.CAMERA_HEIGHT
+            )
+        
+        # Asegurarse de que el procesamiento de gestos esté activo
+        if not self.gesture_manager._running:
+            self.gesture_manager.start_processing()
+        
+        # Suscribirse a los gestos
+        for gesture_name in self.gestures:
+            gesture_id = f"multimedia_{gesture_name.lower()}"
+            self.gesture_manager.subscribe_to_gesture(gesture_id, self.handle_gesture)
+        
+        # Iniciar thread de display
+        self.running = True
+        self.display_thread = threading.Thread(target=self.display_loop)
+        self.display_thread.daemon = True
+        self.display_thread.start()
+        
+        print("Multimedia controller started")
+        print("Press 'q' to quit")
+    
+    def stop(self):
+        """
+        Detiene el controlador y limpia los recursos.
+        """
+        self.running = False
+        
+        if self.display_thread and self.display_thread.is_alive():
+            self.display_thread.join(timeout=1.0)
+        
+        # Desuscribirse de los gestos
+        for gesture_name in self.gestures:
+            gesture_id = f"multimedia_{gesture_name.lower()}"
+            self.gesture_manager.unsubscribe_from_gesture(gesture_id)
+        
+        print("Multimedia controller stopped")
+    
+    def display_loop(self):
+        """
+        Loop principal para mostrar la interfaz de usuario.
+        """
+        while self.running:
+            # Obtener frame actual del gesture manager
+            image, _ = self.gesture_manager.process_frame()
+            if image is None:
+                time.sleep(0.01)
+                continue
+            
+            # Dibujar elementos de UI
+            self.display_instructions(image)
+            self.display_landmarks(image)
+            self.display_volume_bar(image)
+            
+            # Mostrar el frame
+            cv2.imshow('Multimedia Control with Hand Gestures', image)
+            
+            # Salir con 'q'
+            if cv2.waitKey(5) & 0xFF == ord('q'):
+                break
+        
+        # Limpiar ventanas de OpenCV
+        cv2.destroyAllWindows()
 
-# Example usage
+# Ejemplo de uso
 def main():
-    """
-    Entry point of the program: instantiate the controller and start it.
-    Runs the main loop until interrupted.
-    """
     controller = MultimediaController()
     try:
         controller.start()
-        # Main thread sleeps; display runs in its own thread
+        # El loop principal corre en el thread de display
         while True:
             time.sleep(0.1)
     except KeyboardInterrupt:

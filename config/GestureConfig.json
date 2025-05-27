@@ -109,19 +109,19 @@
     },
     "app_gestures": {
         "open": {
-            "Chrome": [0, 1, 1, 0, 0],
-            "Notepad": [1, 1, 0, 0, 0],
-            "Calculator": [1, 1, 1, 0, 0]
+            "App1": [0, 1, 1, 0, 0],
+            "App2": [1, 1, 0, 0, 0],
+            "App3": [1, 1, 1, 0, 0]
         },
         "close": {
-            "Chrome": [0, 0, 0, 0, 0],
-            "Notepad": [0, 0, 0, 0, 1],
-            "Calculator": [1, 0, 0, 0, 1]
+            "App1": [0, 0, 0, 0, 0],
+            "App2": [0, 0, 0, 0, 1],
+            "App3": [1, 0, 0, 0, 1]
         }
     },
     "app_paths": {
-        "Chrome": "chrome.exe",
-        "Notepad": "notepad.exe",
-        "Calculator": "calc.exe"
+        "App1": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "App2": "C:\\Windows\\System32\\notepad.exe",
+        "App3": "C:\\Windows\\System32\\calc.exe"
     }
 }

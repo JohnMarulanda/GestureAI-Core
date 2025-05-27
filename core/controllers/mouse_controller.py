@@ -347,58 +347,87 @@ class MouseController:
                 y_pos -= 30
     
     def display_landmarks(self, frame):
-        """Display hand landmarks on the frame.
-        
-        Args:
-            frame (ndarray): The image frame to draw on.
         """
-        with self.lock:
-            for gesture_data in self.active_gestures.values():
-                landmarks = gesture_data.get("landmarks")
-                if landmarks:
-                    # Draw all landmarks
-                    for i, landmark in enumerate(landmarks.landmark):
-                        x = int(landmark.x * frame.shape[1])
-                        y = int(landmark.y * frame.shape[0])
-                        cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
-                        
-                        # Highlight finger tips
-                        if i in [4, 8, 12, 16, 20]:  # Thumb, Index, Middle, Ring, Pinky tips
-                            cv2.circle(frame, (x, y), 6, (255, 0, 0), -1)
-                            cv2.putText(frame, str(i), (x + 10, y), 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+        Muestra los landmarks de la mano y el estado de los dedos.
+        
+        Args:q
+            frame: Frame donde mostrar los landmarks.
+        """
+        _, results = self.gesture_manager.process_frame()
+        
+        if results and results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                # Dibujar las conexiones entre landmarks
+                self.gesture_manager.drawing_utils.draw_landmarks(
+                    frame,
+                    hand_landmarks,
+                    self.gesture_manager.mp_hands.HAND_CONNECTIONS)
+                
+                # Detectar y mostrar estados de los dedos
+                finger_states = self.detect_finger_states(hand_landmarks)
+                if finger_states:
+                    finger_state_str = "".join([str(s) for s in finger_states])
+                    cv2.putText(frame, f"Estados: {finger_state_str}", 
+                                (10, frame.shape[0] - 90), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                    
+                    # Mostrar estado individual de cada dedo
+                    finger_names = ["Pulgar", "Índice", "Medio", "Anular", "Meñique"]
+                    y_pos = frame.shape[0] - 60
+                    for name, state in zip(finger_names, finger_states):
+                        color = (0, 255, 0) if state == 1 else (0, 0, 255)
+                        status = "Abierto" if state == 1 else "Cerrado"
+                        cv2.putText(frame, f"{name}: {status}", 
+                                    (10, y_pos), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                        y_pos += 20
+                
+                # Dibujar los puntos de los landmarks
+                for i, landmark in enumerate(hand_landmarks.landmark):
+                    x = int(landmark.x * frame.shape[1])
+                    y = int(landmark.y * frame.shape[0])
+                    
+                    # Dibujar círculo para cada landmark
+                    cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
+                    
+                    # Resaltar las puntas de los dedos
+                    if i in [4, 8, 12, 16, 20]:  # Pulgar, índice, medio, anular, meñique
+                        cv2.circle(frame, (x, y), 6, (255, 0, 0), -1)
+                        cv2.putText(frame, str(i), (x + 10, y), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
     
-    def get_finger_states(self, gesture_data):
-        """Determine which fingers are up based on landmarks.
-        
-        Returns a list of 0s and 1s indicating finger states:
-        [thumb, index, middle, ring, pinky]
+    def detect_finger_states(self, hand_landmarks):
+        """
+        Detecta el estado de los dedos (extendido o no) y devuelve una lista de 0s y 1s.
         
         Args:
-            gesture_data (dict): Gesture data containing landmarks.
-        
+            hand_landmarks: Los landmarks de la mano detectada.
+            
         Returns:
-            list or None: Finger states or None if no landmarks.
+            list: Lista de 5 valores (0 o 1) representando el estado de cada dedo.
         """
-        landmarks = gesture_data.get("landmarks")
-        if not landmarks:
+        if not hand_landmarks:
             return None
+            
+        fingertips = [4, 8, 12, 16, 20]  # Pulgar, índice, medio, anular, meñique
+        finger_states = []
         
-        fingers = []
-        # Thumb: compare landmark 4 and 3 x positions
-        if landmarks.landmark[4].x > landmarks.landmark[3].x:
-            fingers.append(1)
-        else:
-            fingers.append(0)
-        
-        # Other fingers: tip landmark y < pip landmark y means finger is up
-        for id in range(1, 5):
-            if landmarks.landmark[4*id+4].y < landmarks.landmark[4*id+2].y:
-                fingers.append(1)
+        # Verificar cada dedo
+        for tip_id in fingertips:
+            # Para el pulgar, comparar coordenada x con la base del pulgar
+            if tip_id == 4:
+                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+            # Para otros dedos, comparar coordenada y con la articulación media
             else:
-                fingers.append(0)
+                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
         
-        return fingers
+        return finger_states
     
     def display_gesture_info(self, frame):
         """Display current gesture information including finger states.
@@ -411,7 +440,7 @@ class MouseController:
             
             # Display current gesture as binary array
             for gesture_id, gesture_data in self.active_gestures.items():
-                finger_states = self.get_finger_states(gesture_data)
+                finger_states = self.detect_finger_states(gesture_data.get("landmarks"))
                 if finger_states:
                     # Show gesture name and binary representation
                     gesture_text = f"Gesture: {gesture_data.get('name', gesture_id)}"
@@ -456,35 +485,89 @@ class MouseController:
             if message_id in self.gesture_messages:
                 del self.gesture_messages[message_id]
     
-    def display_loop(self):
-        """Main loop to display UI and gesture feedback.
-        
-        Continuously captures frames, overlays gesture info, and listens for quit key.
+    def display_mode_info(self, frame):
         """
+        Muestra información sobre el modo actual y sus controles.
+        
+        Args:
+            frame: Frame donde mostrar la información.
+        """
+        mode_info = {
+            'N': "Modo Normal - Selecciona un modo con un gesto",
+            'Cursor': "Modo Cursor - Mueve el índice para controlar el mouse",
+            'Scroll': "Modo Scroll - Índice arriba/abajo para desplazarte",
+            'Volume': "Modo Volumen - Pinza para ajustar el volumen",
+            'Screenshot': "Modo Captura - Gesto de victoria para capturar"
+        }
+        
+        mode_controls = {
+            'Cursor': [
+                "• Un dedo: Mover cursor",
+                "• Dos dedos: Click derecho",
+                "• Pulgar + Índice: Arrastrar",
+                "• Tres dedos: Doble click"
+            ],
+            'Scroll': [
+                "• Índice arriba: Desplazar arriba",
+                "• Índice abajo: Desplazar abajo"
+            ],
+            'Volume': [
+                "• Pinza abierta: Subir volumen",
+                "• Pinza cerrada: Bajar volumen"
+            ],
+            'Screenshot': [
+                "• Victoria + Meñique: Capturar pantalla"
+            ]
+        }
+        
+        # Mostrar modo actual
+        y_pos = 30
+        cv2.putText(frame, f"MODO: {self.current_mode}", (10, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+        # Mostrar descripción del modo
+        y_pos += 30
+        cv2.putText(frame, mode_info.get(self.current_mode, ""), (10, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        # Mostrar controles específicos del modo
+        if self.current_mode in mode_controls:
+            y_pos += 30
+            cv2.putText(frame, "Controles:", (10, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+            y_pos += 20
+            
+            for control in mode_controls[self.current_mode]:
+                cv2.putText(frame, control, (20, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                y_pos += 20
+
+    def display_loop(self):
+        """Bucle principal para mostrar la interfaz de usuario y retroalimentación de gestos."""
         while self.running:
-            # Get the current frame from the gesture manager
+            # Obtener el frame actual del gesture manager
             image, _ = self.gesture_manager.process_frame()
             if image is None:
                 time.sleep(0.01)
                 continue
             
-            # Display UI elements
-            self.display_landmarks(image)
-            self.display_gesture_info(image)
-            self.display_messages(image)
+            # Mostrar elementos de UI
+            self.display_mode_info(image)  # Primero el modo
+            self.display_landmarks(image)   # Luego los landmarks
+            self.display_messages(image)    # Finalmente los mensajes
             
-            # Overlay gesture messages
-            y0, dy = 30, 30
+            # Mostrar mensajes de gestos
+            y0, dy = 200, 30  # Ajustado para no solapar con mode_info
             with self.lock:
                 for i, (key, msg) in enumerate(self.gesture_messages.items()):
                     y = y0 + i * dy
                     cv2.putText(image, msg, (10, y), cv2.FONT_HERSHEY_SIMPLEX,
-                                1, (255, 255, 255), 2)
+                                0.7, (0, 0, 255), 2)
             
-            # Show frame
-            cv2.imshow("Gesture Mouse Controller", image)
+            # Mostrar frame
+            cv2.imshow("Control de Mouse por Gestos", image)
             
-            # Quit on 'q'
+            # Salir con 'q'
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 self.stop()
                 break

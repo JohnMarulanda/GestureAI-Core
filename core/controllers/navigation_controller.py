@@ -3,164 +3,156 @@ import pyautogui
 import time
 import threading
 from core.gesture_recognition_manager import GestureRecognitionManager
+from config import settings
 
 class NavigationController:
     """
-    Controller for window navigation using hand gestures.
+    Controlador para navegación de ventanas usando gestos.
     
-    This controller uses a centralized GestureRecognitionManager to detect hand gestures 
-    and perform window navigation actions such as Alt+Tab, minimize, maximize, and close windows.
+    Este controlador permite realizar acciones de navegación como Alt+Tab,
+    minimizar, maximizar y cerrar ventanas mediante gestos.
     """
     
     def __init__(self):
         """
-        Initializes the NavigationController.
-        
-        Sets up the gesture recognition manager instance, state variables, and gesture-to-action mappings.
+        Inicializa el controlador de navegación.
         """
-        # Obtain the singleton instance of the gesture recognition manager
+        # Obtener la instancia del gesture manager
         self.gesture_manager = GestureRecognitionManager()
         
-        # State variables
-        self.running = False  # Flag to control the main loop
-        self.display_thread = None  # Thread to handle display updates
-        self.lock = threading.Lock()  # Lock to ensure thread-safe operations
+        # Variables de estado
+        self.running = False
+        self.display_thread = None
+        self.lock = threading.Lock()
         
-        # Tracking active gestures and messages to show on screen
+        # Estado de gestos
         self.active_gestures = {}
         self.gesture_messages = {}
-        
-        # Timing to enforce cooldown between actions (in seconds)
         self.last_action_time = time.time()
-        self.cooldown = 1.0
+        self.cooldown = 1.0  # segundos
         
-        # Mapping of gesture IDs to their descriptions for display
+        # Definir gestos y sus acciones correspondientes
         self.gestures = {
-            "Alt+Tab": "Index and middle fingers extended",
-            "Minimizar": "Closed fist",
-            "Maximizar": "All fingers extended",
-            "Cerrar Ventana": "Thumb and pinky extended"
+            "Alt+Tab": "Index and middle finger extended",
+            "Minimize": "Closed fist",
+            "Maximize": "All fingers extended",
+            "Close Window": "Thumb and pinky extended"
         }
         
-        print("Navigation Controller initialized")
-        print("Press 'q' to quit")
+        print("Navigation controller initialized")
     
-    def start(self):
+    def detect_finger_states(self, hand_landmarks):
         """
-        Starts the controller and subscribes to relevant gestures.
-        
-        Ensures the camera is active, subscribes to gesture events,
-        starts gesture processing if not already running, and launches
-        the display update thread.
-        """
-        # Start camera if not already running
-        camera_status = self.gesture_manager.get_camera_status()
-        if not camera_status["connected"]:
-            self.gesture_manager.start_camera_with_settings(width=640, height=480)
-        
-        # Subscribe to gestures of interest with their handlers
-        self.gesture_manager.subscribe_to_gesture("fist", self.handle_gesture)  # Minimize
-        self.gesture_manager.subscribe_to_gesture("palm", self.handle_gesture)  # Maximize
-        self.gesture_manager.subscribe_to_gesture("victory", self.handle_gesture)  # Alt+Tab
-        self.gesture_manager.subscribe_to_gesture("thumbs_up", self.handle_gesture)  # Close window
-        
-        # Start processing gestures if not already running
-        if not self.gesture_manager._running:
-            self.gesture_manager.start_processing()
-        
-        # Start the display update loop in a daemon thread
-        self.running = True
-        self.display_thread = threading.Thread(target=self.display_loop)
-        self.display_thread.daemon = True
-        self.display_thread.start()
-        
-        print("Navigation Controller started")
-    
-    def stop(self):
-        """
-        Stops the controller and unsubscribes from gestures.
-        
-        Joins the display thread and cleans up gesture subscriptions.
-        """
-        self.running = False
-        
-        if self.display_thread and self.display_thread.is_alive():
-            self.display_thread.join(timeout=1.0)
-        
-        # Unsubscribe from all gesture events
-        self.gesture_manager.unsubscribe_from_gesture("fist")
-        self.gesture_manager.unsubscribe_from_gesture("palm")
-        self.gesture_manager.unsubscribe_from_gesture("victory")
-        self.gesture_manager.unsubscribe_from_gesture("thumbs_up")
-        
-        print("Navigation Controller stopped")
-    
-    def handle_gesture(self, event_type, gesture_data):
-        """
-        Handles gesture events received from the gesture manager.
+        Detecta el estado de los dedos (extendido o no) y devuelve una lista de 0s y 1s.
         
         Args:
-            event_type (str): The type of the event ('detected', 'updated', 'ended').
-            gesture_data (dict): Data related to the detected gesture.
+            hand_landmarks: Los landmarks de la mano detectada.
             
-        Behavior:
-            - On 'detected' events, if cooldown time has passed, perform the corresponding action.
-            - On 'ended' events, remove the gesture from active tracking.
+        Returns:
+            list: Lista de 5 valores (0 o 1) representando el estado de cada dedo.
         """
-        gesture_id = gesture_data.get("id")
+        fingertips = [4, 8, 12, 16, 20]  # Thumb, index, middle, ring, pinky
+        finger_states = []
+        
+        # Verificar cada dedo
+        for tip_id in fingertips:
+            # Para el pulgar, comparar coordenada x con la base del pulgar
+            if tip_id == 4:
+                if hand_landmarks.landmark[tip_id].x < hand_landmarks.landmark[tip_id - 2].x:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+            # Para otros dedos, comparar coordenada y con la articulación media
+            else:
+                if hand_landmarks.landmark[tip_id].y < hand_landmarks.landmark[tip_id - 2].y:
+                    finger_states.append(1)  # Extendido
+                else:
+                    finger_states.append(0)  # No extendido
+        
+        return finger_states
+    
+    def identify_gesture(self, finger_states):
+        """
+        Identifica qué gesto se está realizando basado en los estados de los dedos.
+        
+        Args:
+            finger_states: Lista de estados de los dedos.
+            
+        Returns:
+            str: Nombre del gesto identificado o None si no se reconoce.
+        """
+        if finger_states == [0, 1, 1, 0, 0]:  # Index and middle finger extended
+            return "Alt+Tab"
+        elif finger_states == [0, 0, 0, 0, 0]:  # Closed fist
+            return "Minimize"
+        elif finger_states == [1, 1, 1, 1, 1]:  # All fingers extended
+            return "Maximize"
+        elif finger_states == [1, 0, 0, 0, 1]:  # Thumb and pinky extended
+            return "Close Window"
+        return None
+    
+    def perform_action(self, action):
+        """
+        Ejecuta la acción de navegación correspondiente.
+        
+        Args:
+            action: Nombre de la acción a ejecutar.
+        """
         current_time = time.time()
         
-        with self.lock:
-            # Perform action only if cooldown elapsed
-            if event_type == "detected" and current_time - self.last_action_time >= self.cooldown:
-                # Map gesture to window navigation action using pyautogui hotkeys
-                if gesture_id == "fist":
-                    pyautogui.hotkey('win', 'down')  # Minimize window
-                    self.gesture_messages[gesture_id] = "Minimizing window"
-                elif gesture_id == "palm":
-                    pyautogui.hotkey('win', 'up')  # Maximize window
-                    self.gesture_messages[gesture_id] = "Maximizing window"
-                elif gesture_id == "victory":
-                    pyautogui.hotkey('alt', 'tab')  # Alt+Tab to switch application
-                    self.gesture_messages[gesture_id] = "Switching application"
-                elif gesture_id == "thumbs_up":
-                    pyautogui.hotkey('alt', 'f4')  # Close window
-                    self.gesture_messages[gesture_id] = "Closing window"
-                
-                # Update last action timestamp and store active gesture
-                self.last_action_time = current_time
-                self.active_gestures[gesture_id] = gesture_data
-                
-                # Schedule removal of message after 2 seconds
-                threading.Timer(2.0, lambda: self.remove_message(gesture_id)).start()
-                
-                print(f"Action executed: {self.gesture_messages[gesture_id]}")
-            
-            elif event_type == "ended":
-                # Remove gesture from active list when it ends
-                if gesture_id in self.active_gestures:
-                    del self.active_gestures[gesture_id]
+        # Verificar cooldown para prevenir múltiples activaciones
+        if current_time - self.last_action_time < self.cooldown:
+            return
+        
+        if action == "Alt+Tab":
+            pyautogui.hotkey('alt', 'tab')
+            self.set_message("Switching Applications")
+        elif action == "Minimize":
+            pyautogui.hotkey('win', 'down')
+            self.set_message("Minimizing Window")
+        elif action == "Maximize":
+            pyautogui.hotkey('win', 'up')
+            self.set_message("Maximizing Window")
+        elif action == "Close Window":
+            pyautogui.hotkey('alt', 'f4')
+            self.set_message("Closing Window")
+        
+        self.last_action_time = current_time
     
-    def remove_message(self, gesture_id):
+    def set_message(self, message, duration=2.0):
         """
-        Removes a gesture message after a timeout to clean up UI.
+        Establece un mensaje temporal para mostrar en pantalla.
         
         Args:
-            gesture_id (str): The ID of the gesture message to remove.
+            message: Mensaje a mostrar.
+            duration: Duración en segundos (opcional).
         """
         with self.lock:
-            if gesture_id in self.gesture_messages:
-                del self.gesture_messages[gesture_id]
+            self.gesture_messages["action"] = message
+            # Programar eliminación del mensaje
+            threading.Timer(duration, lambda: self.remove_message("action")).start()
+        print(message)
+    
+    def remove_message(self, message_id):
+        """
+        Elimina un mensaje específico.
+        
+        Args:
+            message_id: Identificador del mensaje a eliminar.
+        """
+        with self.lock:
+            if message_id in self.gesture_messages:
+                del self.gesture_messages[message_id]
     
     def display_instructions(self, frame):
         """
-        Displays the list of available gestures and their functions on the frame.
+        Muestra la lista de gestos disponibles y sus funciones.
         
         Args:
-            frame (np.ndarray): The image frame on which to draw instructions.
+            frame: Frame donde mostrar las instrucciones.
         """
         y_pos = 30
-        cv2.putText(frame, "NAVIGATION CONTROLS:", (10, y_pos), 
+        cv2.putText(frame, "WINDOW NAVIGATION GESTURES:", (10, y_pos), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
         y_pos += 30
@@ -169,152 +161,176 @@ class NavigationController:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             y_pos += 25
     
-    def display_current_action(self, frame):
-        """
-        Displays the current action(s) being executed based on gesture input.
-        
-        Args:
-            frame (np.ndarray): The image frame on which to draw action messages.
-        """
-        with self.lock:
-            y_pos = frame.shape[0] - 60
-            for message in self.gesture_messages.values():
-                cv2.putText(frame, message, (10, y_pos), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                y_pos -= 30
-    
     def display_landmarks(self, frame):
         """
-        Displays hand landmarks on the frame.
+        Muestra los landmarks de la mano y el estado de los dedos.
         
         Args:
-            frame (np.ndarray): The image frame on which to draw landmarks.
+            frame: Frame donde mostrar los landmarks.
         """
         with self.lock:
-            for gesture_data in self.active_gestures.values():
-                landmarks = gesture_data.get("landmarks")
-                if landmarks:
-                    # Draw all landmarks
-                    for i, landmark in enumerate(landmarks.landmark):
+            # Obtener el frame actual y los resultados de MediaPipe
+            _, results = self.gesture_manager.process_frame()
+            
+            if results and results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    # Dibujar las conexiones entre landmarks
+                    self.gesture_manager.drawing_utils.draw_landmarks(
+                        frame,
+                        hand_landmarks,
+                        self.gesture_manager.mp_hands.HAND_CONNECTIONS)
+                    
+                    # Detectar y mostrar estados de los dedos
+                    finger_states = self.detect_finger_states(hand_landmarks)
+                    finger_state_str = "".join([str(s) for s in finger_states])
+                    cv2.putText(frame, f"Gesture: {finger_state_str}", 
+                                (10, frame.shape[0] - 90), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                    
+                    # Identificar gesto
+                    gesture = self.identify_gesture(finger_states)
+                    if gesture:
+                        cv2.putText(frame, f"Detected: {gesture}", 
+                                    (10, frame.shape[0] - 60), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    
+                    # Dibujar los puntos de los landmarks
+                    for i, landmark in enumerate(hand_landmarks.landmark):
                         x = int(landmark.x * frame.shape[1])
                         y = int(landmark.y * frame.shape[0])
+                        
+                        # Dibujar círculo para cada landmark
                         cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
                         
-                        # Highlight finger tips
+                        # Resaltar las puntas de los dedos
                         if i in [4, 8, 12, 16, 20]:  # Thumb, Index, Middle, Ring, Pinky tips
                             cv2.circle(frame, (x, y), 6, (255, 0, 0), -1)
                             cv2.putText(frame, str(i), (x + 10, y), 
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
     
-    def get_finger_states(self, gesture_data):
+    def display_messages(self, frame):
         """
-        Determine which fingers are up based on landmarks.
-        
-        Returns a list of 0s and 1s indicating finger states:
-        [thumb, index, middle, ring, pinky]
+        Muestra los mensajes actuales en el frame.
         
         Args:
-            gesture_data (dict): Gesture data containing landmarks.
-        
-        Returns:
-            list or None: Finger states or None if no landmarks.
-        """
-        landmarks = gesture_data.get("landmarks")
-        if not landmarks:
-            return None
-        
-        fingers = []
-        # Thumb: compare landmark 4 and 3 x positions
-        if landmarks.landmark[4].x > landmarks.landmark[3].x:
-            fingers.append(1)
-        else:
-            fingers.append(0)
-        
-        # Other fingers: tip landmark y < pip landmark y means finger is up
-        for id in range(1, 5):
-            if landmarks.landmark[4*id+4].y < landmarks.landmark[4*id+2].y:
-                fingers.append(1)
-            else:
-                fingers.append(0)
-        
-        return fingers
-    
-    def display_gesture_info(self, frame):
-        """
-        Displays current gesture information including finger states.
-        
-        Args:
-            frame (np.ndarray): The image frame on which to draw gesture info.
+            frame: Frame donde mostrar los mensajes.
         """
         with self.lock:
-            y_pos = frame.shape[0] - 150
-            
-            # Display current gesture as binary array
-            for gesture_id, gesture_data in self.active_gestures.items():
-                finger_states = self.get_finger_states(gesture_data)
-                if finger_states:
-                    # Show gesture name and binary representation
-                    gesture_text = f"Gesture: {gesture_data.get('name', gesture_id)}"
-                    cv2.putText(frame, gesture_text, (10, y_pos), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                    y_pos += 25
-                    
-                    # Show binary array
-                    binary_text = f"Fingers: {finger_states}"
-                    cv2.putText(frame, binary_text, (10, y_pos), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-                    y_pos += 20
-                    
-                    # Show individual finger states with colors
-                    finger_names = ["Thumb", "Index", "Middle", "Ring", "Pinky"]
-                    for i, (name, state) in enumerate(zip(finger_names, finger_states)):
-                        color = (0, 255, 0) if state == 1 else (0, 0, 255)  # Green if open, red if closed
-                        status = "Open" if state == 1 else "Closed"
-                        finger_text = f"{name}: {status}"
-                        cv2.putText(frame, finger_text, (10 + i * 100, y_pos), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-                    y_pos += 30
+            y_pos = frame.shape[0] - 30
+            for message in self.gesture_messages.values():
+                cv2.putText(frame, message, (10, y_pos), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                y_pos -= 30
+    
+    def handle_gesture(self, event_type, gesture_data):
+        """
+        Maneja los eventos de gestos del gesture manager.
+        
+        Args:
+            event_type: Tipo de evento ('detected', 'updated', 'ended').
+            gesture_data: Datos asociados al gesto.
+        """
+        gesture_id = gesture_data.get("id")
+        
+        with self.lock:
+            if event_type == "detected":
+                # Nuevo gesto detectado
+                self.active_gestures[gesture_id] = gesture_data
+                
+                # Identificar y ejecutar acción
+                finger_states = gesture_data.get("finger_states", [])
+                gesture = self.identify_gesture(finger_states)
+                if gesture:
+                    self.perform_action(gesture)
+                
+            elif event_type == "updated":
+                # Gesto actualizado
+                self.active_gestures[gesture_id] = gesture_data
+                
+            elif event_type == "ended":
+                # Gesto terminado
+                if gesture_id in self.active_gestures:
+                    del self.active_gestures[gesture_id]
+    
+    def start(self):
+        """
+        Inicia el controlador y la suscripción a eventos de gestos.
+        """
+        # Inicializar cámara si es necesario
+        camera_status = self.gesture_manager.get_camera_status()
+        if not camera_status["connected"]:
+            self.gesture_manager.start_camera_with_settings(
+                camera_id=settings.DEFAULT_CAMERA_ID,
+                width=settings.CAMERA_WIDTH,
+                height=settings.CAMERA_HEIGHT
+            )
+        
+        # Asegurarse de que el procesamiento de gestos esté activo
+        if not self.gesture_manager._running:
+            self.gesture_manager.start_processing()
+        
+        # Suscribirse a los gestos
+        for gesture_name in self.gestures:
+            gesture_id = f"navigation_{gesture_name.lower()}"
+            self.gesture_manager.subscribe_to_gesture(gesture_id, self.handle_gesture)
+        
+        # Iniciar thread de display
+        self.running = True
+        self.display_thread = threading.Thread(target=self.display_loop)
+        self.display_thread.daemon = True
+        self.display_thread.start()
+        
+        print("Navigation controller started")
+        print("Press 'q' to quit")
+    
+    def stop(self):
+        """
+        Detiene el controlador y limpia los recursos.
+        """
+        self.running = False
+        
+        if self.display_thread and self.display_thread.is_alive():
+            self.display_thread.join(timeout=1.0)
+        
+        # Desuscribirse de los gestos
+        for gesture_name in self.gestures:
+            gesture_id = f"navigation_{gesture_name.lower()}"
+            self.gesture_manager.unsubscribe_from_gesture(gesture_id)
+        
+        print("Navigation controller stopped")
     
     def display_loop(self):
         """
-        Main loop for updating the user interface display.
-        
-        Continuously fetches frames from the gesture manager, overlays instructions
-        and current action messages, and handles quitting on 'q' key press.
+        Loop principal para mostrar la interfaz de usuario.
         """
         while self.running:
-            # Get current frame and metadata from gesture manager
+            # Obtener frame actual del gesture manager
             image, _ = self.gesture_manager.process_frame()
             if image is None:
                 time.sleep(0.01)
                 continue
             
-            # Display gesture instructions, landmarks, gesture info and current action messages
+            # Dibujar elementos de UI
             self.display_instructions(image)
             self.display_landmarks(image)
-            self.display_gesture_info(image)
-            self.display_current_action(image)
+            self.display_messages(image)
             
-            # Show the frame in a window
-            cv2.imshow('Window Navigation with Gestures', image)
+            # Mostrar el frame
+            cv2.imshow('Window Navigation with Hand Gestures', image)
             
-            # Exit if 'q' is pressed
+            # Salir con 'q'
             if cv2.waitKey(5) & 0xFF == ord('q'):
                 break
         
-        # Clean up windows on exit
+        # Limpiar ventanas de OpenCV
         cv2.destroyAllWindows()
 
-# Example usage
+# Ejemplo de uso
 def main():
-    """
-    Entry point for running the NavigationController.
-    Starts the controller and maintains the main thread alive.
-    """
     controller = NavigationController()
     try:
         controller.start()
-        # Keep main thread alive while display thread runs
+        # El loop principal corre en el thread de display
         while True:
             time.sleep(0.1)
     except KeyboardInterrupt:
