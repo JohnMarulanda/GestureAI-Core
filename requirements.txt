@@ -1,15 +1,15 @@
 # Core gesture control dependencies
-opencv-python==4.8.0.76
-mediapipe==0.10.8
-numpy==1.24.3
-pyautogui==0.9.54
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+numpy>=1.21.0
+pyautogui>=0.9.54
 keyboard>=0.13.5
-pynput==1.8.1
+pynput>=1.7.6
 wxPython>=4.1.1
-screen-brightness-control>=0.10.0
+screen-brightness-control>=0.24.2
 psutil>=5.9.0
-comtypes>=1.1.11
-pycaw>=20211125
+comtypes>=1.1.14
+pycaw>=20220416
 cvzone==1.6.1
 autopy>=4.0.0
 
@@ -19,3 +19,5 @@ uvicorn==0.34.2
 
 # Config & environment
 python-dotenv>=1.0.0
+
+Pillow>=9.0.0
