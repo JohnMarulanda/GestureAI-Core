@@ -14,6 +14,8 @@ from core.controllers.multimedia_controller import MultimediaController
 from core.controllers.zoom_controller import ZoomController
 from core.controllers.paint_controller import PaintController
 from core.controllers.mouse_controller import MouseController
+import asyncio
+import websockets
 
 class MainWindow:
     def __init__(self):
@@ -151,6 +153,20 @@ class MainWindow:
     def run(self):
         self.root.mainloop()
 
+async def volume_control_handler(websocket, path):
+    controller = VolumeController()
+    async for message in websocket:
+        if message == 'volume_up':
+            controller._perform_volume_action('Thumb_Up', 1.0)
+        elif message == 'volume_down':
+            controller._perform_volume_action('Thumb_Down', 1.0)
+
+async def start_websocket_server():
+    server = await websockets.serve(volume_control_handler, 'localhost', 8765)
+    await server.wait_closed()
+
 if __name__ == "__main__":
     app = MainWindow()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_websocket_server())
     app.run()
