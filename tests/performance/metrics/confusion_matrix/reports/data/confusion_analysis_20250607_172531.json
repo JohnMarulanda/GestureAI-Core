@@ -1,0 +1,1987 @@
+{
+  "individual_analyses": {
+    "mouse": {
+      "controller": "mouse",
+      "labels": [
+        "fist",
+        "open_palm",
+        "point_up",
+        "victory",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          139,
+          5,
+          0,
+          0,
+          6
+        ],
+        [
+          11,
+          134,
+          5,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          130,
+          16,
+          0
+        ],
+        [
+          0,
+          5,
+          11,
+          134,
+          0
+        ],
+        [
+          2,
+          3,
+          0,
+          0,
+          145
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.9093333333333333,
+        "precision_per_class": {
+          "fist": 0.9144736842105263,
+          "open_palm": 0.8874172185430463,
+          "point_up": 0.8904109589041096,
+          "victory": 0.8933333333333333,
+          "no_gesture": 0.9602649006622517
+        },
+        "recall_per_class": {
+          "fist": 0.9266666666666666,
+          "open_palm": 0.8933333333333333,
+          "point_up": 0.8666666666666667,
+          "victory": 0.8933333333333333,
+          "no_gesture": 0.9666666666666667
+        },
+        "f1_per_class": {
+          "fist": 0.9205298013245033,
+          "open_palm": 0.8903654485049833,
+          "point_up": 0.8783783783783784,
+          "victory": 0.8933333333333333,
+          "no_gesture": 0.9634551495016611
+        },
+        "support_per_class": {
+          "fist": 150,
+          "open_palm": 150,
+          "point_up": 150,
+          "victory": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "fist": {
+            "precision": 0.9144736842105263,
+            "recall": 0.9266666666666666,
+            "f1-score": 0.9205298013245033,
+            "support": 150.0
+          },
+          "open_palm": {
+            "precision": 0.8874172185430463,
+            "recall": 0.8933333333333333,
+            "f1-score": 0.8903654485049833,
+            "support": 150.0
+          },
+          "point_up": {
+            "precision": 0.8904109589041096,
+            "recall": 0.8666666666666667,
+            "f1-score": 0.8783783783783784,
+            "support": 150.0
+          },
+          "victory": {
+            "precision": 0.8933333333333333,
+            "recall": 0.8933333333333333,
+            "f1-score": 0.8933333333333333,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9602649006622517,
+            "recall": 0.9666666666666667,
+            "f1-score": 0.9634551495016611,
+            "support": 150.0
+          },
+          "accuracy": 0.9093333333333333,
+          "macro avg": {
+            "precision": 0.9091800191306534,
+            "recall": 0.9093333333333333,
+            "f1-score": 0.909212422208572,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.9091800191306535,
+            "recall": 0.9093333333333333,
+            "f1-score": 0.9092124222085719,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "point_up",
+            "predicted_gesture": "victory",
+            "confusion_rate": 0.10666666666666667,
+            "count": 16
+          },
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.07333333333333333,
+            "count": 11
+          },
+          {
+            "true_gesture": "victory",
+            "predicted_gesture": "point_up",
+            "confusion_rate": 0.07333333333333333,
+            "count": 11
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9666666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "fist",
+            "accuracy": 0.9266666666666666,
+            "total_samples": 150
+          },
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.8933333333333333,
+            "total_samples": 150
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.8933333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "victory",
+            "accuracy": 0.8933333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "point_up",
+            "accuracy": 0.8666666666666667,
+            "total_samples": 150
+          }
+        ],
+        "common_false_positives": {
+          "fist": [
+            {
+              "source_gesture": "open_palm",
+              "count": 11,
+              "rate": 0.07333333333333333
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 2,
+              "rate": 0.013333333333333334
+            }
+          ],
+          "open_palm": [
+            {
+              "source_gesture": "fist",
+              "count": 5,
+              "rate": 0.03333333333333333
+            },
+            {
+              "source_gesture": "victory",
+              "count": 5,
+              "rate": 0.03333333333333333
+            },
+            {
+              "source_gesture": "point_up",
+              "count": 4,
+              "rate": 0.02666666666666667
+            }
+          ],
+          "point_up": [
+            {
+              "source_gesture": "victory",
+              "count": 11,
+              "rate": 0.07333333333333333
+            },
+            {
+              "source_gesture": "open_palm",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ],
+          "victory": [
+            {
+              "source_gesture": "point_up",
+              "count": 16,
+              "rate": 0.10666666666666667
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 6,
+              "rate": 0.04
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "fist": {
+            "accuracy": 0.9266666666666666,
+            "error_rate": 0.07333333333333336,
+            "total_errors": 11,
+            "difficulty_score": 0.07333333333333336
+          },
+          "open_palm": {
+            "accuracy": 0.8933333333333333,
+            "error_rate": 0.10666666666666669,
+            "total_errors": 16,
+            "difficulty_score": 0.10666666666666669
+          },
+          "point_up": {
+            "accuracy": 0.8666666666666667,
+            "error_rate": 0.1333333333333333,
+            "total_errors": 20,
+            "difficulty_score": 0.1333333333333333
+          },
+          "victory": {
+            "accuracy": 0.8933333333333333,
+            "error_rate": 0.10666666666666669,
+            "total_errors": 16,
+            "difficulty_score": 0.10666666666666669
+          },
+          "no_gesture": {
+            "accuracy": 0.9666666666666667,
+            "error_rate": 0.033333333333333326,
+            "total_errors": 5,
+            "difficulty_score": 0.033333333333333326
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:28.610776"
+    },
+    "volume": {
+      "controller": "volume",
+      "labels": [
+        "thumb_up",
+        "thumb_down",
+        "fist",
+        "open_palm",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          137,
+          7,
+          0,
+          6,
+          0
+        ],
+        [
+          9,
+          134,
+          7,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          138,
+          6,
+          6
+        ],
+        [
+          8,
+          0,
+          11,
+          131,
+          0
+        ],
+        [
+          0,
+          0,
+          4,
+          4,
+          142
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.9093333333333333,
+        "precision_per_class": {
+          "thumb_up": 0.8896103896103896,
+          "thumb_down": 0.950354609929078,
+          "fist": 0.8625,
+          "open_palm": 0.891156462585034,
+          "no_gesture": 0.9594594594594594
+        },
+        "recall_per_class": {
+          "thumb_up": 0.9133333333333333,
+          "thumb_down": 0.8933333333333333,
+          "fist": 0.92,
+          "open_palm": 0.8733333333333333,
+          "no_gesture": 0.9466666666666667
+        },
+        "f1_per_class": {
+          "thumb_up": 0.9013157894736842,
+          "thumb_down": 0.9209621993127147,
+          "fist": 0.8903225806451613,
+          "open_palm": 0.8821548821548821,
+          "no_gesture": 0.9530201342281879
+        },
+        "support_per_class": {
+          "thumb_up": 150,
+          "thumb_down": 150,
+          "fist": 150,
+          "open_palm": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "thumb_up": {
+            "precision": 0.8896103896103896,
+            "recall": 0.9133333333333333,
+            "f1-score": 0.9013157894736842,
+            "support": 150.0
+          },
+          "thumb_down": {
+            "precision": 0.950354609929078,
+            "recall": 0.8933333333333333,
+            "f1-score": 0.9209621993127147,
+            "support": 150.0
+          },
+          "fist": {
+            "precision": 0.8625,
+            "recall": 0.92,
+            "f1-score": 0.8903225806451613,
+            "support": 150.0
+          },
+          "open_palm": {
+            "precision": 0.891156462585034,
+            "recall": 0.8733333333333333,
+            "f1-score": 0.8821548821548821,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9594594594594594,
+            "recall": 0.9466666666666667,
+            "f1-score": 0.9530201342281879,
+            "support": 150.0
+          },
+          "accuracy": 0.9093333333333333,
+          "macro avg": {
+            "precision": 0.9106161843167924,
+            "recall": 0.9093333333333332,
+            "f1-score": 0.909555117162926,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.9106161843167923,
+            "recall": 0.9093333333333333,
+            "f1-score": 0.9095551171629261,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.07333333333333333,
+            "count": 11
+          },
+          {
+            "true_gesture": "thumb_down",
+            "predicted_gesture": "thumb_up",
+            "confusion_rate": 0.06,
+            "count": 9
+          },
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "thumb_up",
+            "confusion_rate": 0.05333333333333334,
+            "count": 8
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9466666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "fist",
+            "accuracy": 0.92,
+            "total_samples": 150
+          },
+          {
+            "gesture": "thumb_up",
+            "accuracy": 0.9133333333333333,
+            "total_samples": 150
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "thumb_up",
+            "accuracy": 0.9133333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "thumb_down",
+            "accuracy": 0.8933333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.8733333333333333,
+            "total_samples": 150
+          }
+        ],
+        "common_false_positives": {
+          "thumb_up": [
+            {
+              "source_gesture": "thumb_down",
+              "count": 9,
+              "rate": 0.06
+            },
+            {
+              "source_gesture": "open_palm",
+              "count": 8,
+              "rate": 0.05333333333333334
+            }
+          ],
+          "thumb_down": [
+            {
+              "source_gesture": "thumb_up",
+              "count": 7,
+              "rate": 0.04666666666666667
+            }
+          ],
+          "fist": [
+            {
+              "source_gesture": "open_palm",
+              "count": 11,
+              "rate": 0.07333333333333333
+            },
+            {
+              "source_gesture": "thumb_down",
+              "count": 7,
+              "rate": 0.04666666666666667
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 4,
+              "rate": 0.02666666666666667
+            }
+          ],
+          "open_palm": [
+            {
+              "source_gesture": "thumb_up",
+              "count": 6,
+              "rate": 0.04
+            },
+            {
+              "source_gesture": "fist",
+              "count": 6,
+              "rate": 0.04
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 4,
+              "rate": 0.02666666666666667
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 6,
+              "rate": 0.04
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "thumb_up": {
+            "accuracy": 0.9133333333333333,
+            "error_rate": 0.08666666666666667,
+            "total_errors": 13,
+            "difficulty_score": 0.08666666666666667
+          },
+          "thumb_down": {
+            "accuracy": 0.8933333333333333,
+            "error_rate": 0.10666666666666669,
+            "total_errors": 16,
+            "difficulty_score": 0.10666666666666669
+          },
+          "fist": {
+            "accuracy": 0.92,
+            "error_rate": 0.07999999999999996,
+            "total_errors": 12,
+            "difficulty_score": 0.07999999999999996
+          },
+          "open_palm": {
+            "accuracy": 0.8733333333333333,
+            "error_rate": 0.1266666666666667,
+            "total_errors": 19,
+            "difficulty_score": 0.1266666666666667
+          },
+          "no_gesture": {
+            "accuracy": 0.9466666666666667,
+            "error_rate": 0.053333333333333344,
+            "total_errors": 8,
+            "difficulty_score": 0.053333333333333344
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:28.990586"
+    },
+    "navigation": {
+      "controller": "navigation",
+      "labels": [
+        "point_up",
+        "victory",
+        "open_palm",
+        "fist",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          137,
+          10,
+          3,
+          0,
+          0
+        ],
+        [
+          10,
+          130,
+          10,
+          0,
+          0
+        ],
+        [
+          11,
+          0,
+          129,
+          10,
+          0
+        ],
+        [
+          0,
+          0,
+          9,
+          136,
+          5
+        ],
+        [
+          0,
+          0,
+          7,
+          6,
+          137
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.892,
+        "precision_per_class": {
+          "point_up": 0.8670886075949367,
+          "victory": 0.9285714285714286,
+          "open_palm": 0.8164556962025317,
+          "fist": 0.8947368421052632,
+          "no_gesture": 0.9647887323943662
+        },
+        "recall_per_class": {
+          "point_up": 0.9133333333333333,
+          "victory": 0.8666666666666667,
+          "open_palm": 0.86,
+          "fist": 0.9066666666666666,
+          "no_gesture": 0.9133333333333333
+        },
+        "f1_per_class": {
+          "point_up": 0.8896103896103896,
+          "victory": 0.896551724137931,
+          "open_palm": 0.8376623376623377,
+          "fist": 0.9006622516556292,
+          "no_gesture": 0.9383561643835616
+        },
+        "support_per_class": {
+          "point_up": 150,
+          "victory": 150,
+          "open_palm": 150,
+          "fist": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "point_up": {
+            "precision": 0.8670886075949367,
+            "recall": 0.9133333333333333,
+            "f1-score": 0.8896103896103896,
+            "support": 150.0
+          },
+          "victory": {
+            "precision": 0.9285714285714286,
+            "recall": 0.8666666666666667,
+            "f1-score": 0.896551724137931,
+            "support": 150.0
+          },
+          "open_palm": {
+            "precision": 0.8164556962025317,
+            "recall": 0.86,
+            "f1-score": 0.8376623376623377,
+            "support": 150.0
+          },
+          "fist": {
+            "precision": 0.8947368421052632,
+            "recall": 0.9066666666666666,
+            "f1-score": 0.9006622516556292,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9647887323943662,
+            "recall": 0.9133333333333333,
+            "f1-score": 0.9383561643835616,
+            "support": 150.0
+          },
+          "accuracy": 0.892,
+          "macro avg": {
+            "precision": 0.8943282613737052,
+            "recall": 0.892,
+            "f1-score": 0.8925685734899698,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.8943282613737052,
+            "recall": 0.892,
+            "f1-score": 0.8925685734899699,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "point_up",
+            "confusion_rate": 0.07333333333333333,
+            "count": 11
+          },
+          {
+            "true_gesture": "point_up",
+            "predicted_gesture": "victory",
+            "confusion_rate": 0.06666666666666667,
+            "count": 10
+          },
+          {
+            "true_gesture": "victory",
+            "predicted_gesture": "point_up",
+            "confusion_rate": 0.06666666666666667,
+            "count": 10
+          },
+          {
+            "true_gesture": "victory",
+            "predicted_gesture": "open_palm",
+            "confusion_rate": 0.06666666666666667,
+            "count": 10
+          },
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.06666666666666667,
+            "count": 10
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "point_up",
+            "accuracy": 0.9133333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9133333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "fist",
+            "accuracy": 0.9066666666666666,
+            "total_samples": 150
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "fist",
+            "accuracy": 0.9066666666666666,
+            "total_samples": 150
+          },
+          {
+            "gesture": "victory",
+            "accuracy": 0.8666666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.86,
+            "total_samples": 150
+          }
+        ],
+        "common_false_positives": {
+          "point_up": [
+            {
+              "source_gesture": "open_palm",
+              "count": 11,
+              "rate": 0.07333333333333333
+            },
+            {
+              "source_gesture": "victory",
+              "count": 10,
+              "rate": 0.06666666666666667
+            }
+          ],
+          "victory": [
+            {
+              "source_gesture": "point_up",
+              "count": 10,
+              "rate": 0.06666666666666667
+            }
+          ],
+          "open_palm": [
+            {
+              "source_gesture": "victory",
+              "count": 10,
+              "rate": 0.06666666666666667
+            },
+            {
+              "source_gesture": "fist",
+              "count": 9,
+              "rate": 0.06
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 7,
+              "rate": 0.04666666666666667
+            }
+          ],
+          "fist": [
+            {
+              "source_gesture": "open_palm",
+              "count": 10,
+              "rate": 0.06666666666666667
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 6,
+              "rate": 0.04
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "point_up": {
+            "accuracy": 0.9133333333333333,
+            "error_rate": 0.08666666666666667,
+            "total_errors": 13,
+            "difficulty_score": 0.08666666666666667
+          },
+          "victory": {
+            "accuracy": 0.8666666666666667,
+            "error_rate": 0.1333333333333333,
+            "total_errors": 20,
+            "difficulty_score": 0.1333333333333333
+          },
+          "open_palm": {
+            "accuracy": 0.86,
+            "error_rate": 0.14,
+            "total_errors": 21,
+            "difficulty_score": 0.14
+          },
+          "fist": {
+            "accuracy": 0.9066666666666666,
+            "error_rate": 0.09333333333333338,
+            "total_errors": 14,
+            "difficulty_score": 0.09333333333333338
+          },
+          "no_gesture": {
+            "accuracy": 0.9133333333333333,
+            "error_rate": 0.08666666666666667,
+            "total_errors": 13,
+            "difficulty_score": 0.08666666666666667
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:29.379719"
+    },
+    "shortcuts": {
+      "controller": "shortcuts",
+      "labels": [
+        "fist",
+        "victory",
+        "open_palm",
+        "thumb_up",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          140,
+          0,
+          5,
+          0,
+          5
+        ],
+        [
+          0,
+          133,
+          4,
+          0,
+          0
+        ],
+        [
+          11,
+          0,
+          136,
+          3,
+          0
+        ],
+        [
+          0,
+          4,
+          17,
+          129,
+          0
+        ],
+        [
+          1,
+          0,
+          6,
+          0,
+          143
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.908,
+        "precision_per_class": {
+          "fist": 0.9210526315789473,
+          "victory": 0.9708029197080292,
+          "open_palm": 0.8095238095238095,
+          "thumb_up": 0.9772727272727273,
+          "no_gesture": 0.9662162162162162
+        },
+        "recall_per_class": {
+          "fist": 0.9333333333333333,
+          "victory": 0.8866666666666667,
+          "open_palm": 0.9066666666666666,
+          "thumb_up": 0.86,
+          "no_gesture": 0.9533333333333334
+        },
+        "f1_per_class": {
+          "fist": 0.9271523178807947,
+          "victory": 0.926829268292683,
+          "open_palm": 0.8553459119496856,
+          "thumb_up": 0.9148936170212766,
+          "no_gesture": 0.959731543624161
+        },
+        "support_per_class": {
+          "fist": 150,
+          "victory": 150,
+          "open_palm": 150,
+          "thumb_up": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "fist": {
+            "precision": 0.9210526315789473,
+            "recall": 0.9333333333333333,
+            "f1-score": 0.9271523178807947,
+            "support": 150.0
+          },
+          "victory": {
+            "precision": 0.9708029197080292,
+            "recall": 0.8866666666666667,
+            "f1-score": 0.926829268292683,
+            "support": 150.0
+          },
+          "open_palm": {
+            "precision": 0.8095238095238095,
+            "recall": 0.9066666666666666,
+            "f1-score": 0.8553459119496856,
+            "support": 150.0
+          },
+          "thumb_up": {
+            "precision": 0.9772727272727273,
+            "recall": 0.86,
+            "f1-score": 0.9148936170212766,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9662162162162162,
+            "recall": 0.9533333333333334,
+            "f1-score": 0.959731543624161,
+            "support": 150.0
+          },
+          "micro avg": {
+            "precision": 0.9240162822252375,
+            "recall": 0.908,
+            "f1-score": 0.9159381304640215,
+            "support": 750.0
+          },
+          "macro avg": {
+            "precision": 0.9289736608599458,
+            "recall": 0.908,
+            "f1-score": 0.9167905317537202,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.928973660859946,
+            "recall": 0.908,
+            "f1-score": 0.9167905317537202,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "thumb_up",
+            "predicted_gesture": "open_palm",
+            "confusion_rate": 0.11333333333333333,
+            "count": 17
+          },
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.07333333333333333,
+            "count": 11
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "victory",
+            "accuracy": 0.9708029197080292,
+            "total_samples": 137
+          },
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9533333333333334,
+            "total_samples": 150
+          },
+          {
+            "gesture": "fist",
+            "accuracy": 0.9333333333333333,
+            "total_samples": 150
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "fist",
+            "accuracy": 0.9333333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.9066666666666666,
+            "total_samples": 150
+          },
+          {
+            "gesture": "thumb_up",
+            "accuracy": 0.86,
+            "total_samples": 150
+          }
+        ],
+        "common_false_positives": {
+          "fist": [
+            {
+              "source_gesture": "open_palm",
+              "count": 11,
+              "rate": 0.07333333333333333
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 1,
+              "rate": 0.006666666666666667
+            }
+          ],
+          "victory": [
+            {
+              "source_gesture": "thumb_up",
+              "count": 4,
+              "rate": 0.02666666666666667
+            }
+          ],
+          "open_palm": [
+            {
+              "source_gesture": "thumb_up",
+              "count": 17,
+              "rate": 0.11333333333333333
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 6,
+              "rate": 0.04
+            },
+            {
+              "source_gesture": "fist",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ],
+          "thumb_up": [
+            {
+              "source_gesture": "open_palm",
+              "count": 3,
+              "rate": 0.02
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "fist": {
+            "accuracy": 0.9333333333333333,
+            "error_rate": 0.06666666666666665,
+            "total_errors": 10,
+            "difficulty_score": 0.06666666666666665
+          },
+          "victory": {
+            "accuracy": 0.9708029197080292,
+            "error_rate": 0.029197080291970767,
+            "total_errors": 4,
+            "difficulty_score": 0.029197080291970767
+          },
+          "open_palm": {
+            "accuracy": 0.9066666666666666,
+            "error_rate": 0.09333333333333338,
+            "total_errors": 14,
+            "difficulty_score": 0.09333333333333338
+          },
+          "thumb_up": {
+            "accuracy": 0.86,
+            "error_rate": 0.14,
+            "total_errors": 21,
+            "difficulty_score": 0.14
+          },
+          "no_gesture": {
+            "accuracy": 0.9533333333333334,
+            "error_rate": 0.046666666666666634,
+            "total_errors": 7,
+            "difficulty_score": 0.046666666666666634
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:29.884492"
+    },
+    "multimedia": {
+      "controller": "multimedia",
+      "labels": [
+        "thumb_up",
+        "thumb_down",
+        "fist",
+        "victory",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          128,
+          16,
+          0,
+          6,
+          0
+        ],
+        [
+          5,
+          136,
+          9,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          138,
+          0,
+          3
+        ],
+        [
+          13,
+          0,
+          0,
+          132,
+          0
+        ],
+        [
+          0,
+          0,
+          6,
+          0,
+          133
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.8893333333333333,
+        "precision_per_class": {
+          "thumb_up": 0.8767123287671232,
+          "thumb_down": 0.8947368421052632,
+          "fist": 0.9019607843137255,
+          "victory": 0.9565217391304348,
+          "no_gesture": 0.9779411764705882
+        },
+        "recall_per_class": {
+          "thumb_up": 0.8533333333333334,
+          "thumb_down": 0.9066666666666666,
+          "fist": 0.92,
+          "victory": 0.88,
+          "no_gesture": 0.8866666666666667
+        },
+        "f1_per_class": {
+          "thumb_up": 0.8648648648648649,
+          "thumb_down": 0.9006622516556292,
+          "fist": 0.9108910891089109,
+          "victory": 0.9166666666666666,
+          "no_gesture": 0.9300699300699301
+        },
+        "support_per_class": {
+          "thumb_up": 150,
+          "thumb_down": 150,
+          "fist": 150,
+          "victory": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "thumb_up": {
+            "precision": 0.8767123287671232,
+            "recall": 0.8533333333333334,
+            "f1-score": 0.8648648648648649,
+            "support": 150.0
+          },
+          "thumb_down": {
+            "precision": 0.8947368421052632,
+            "recall": 0.9066666666666666,
+            "f1-score": 0.9006622516556292,
+            "support": 150.0
+          },
+          "fist": {
+            "precision": 0.9019607843137255,
+            "recall": 0.92,
+            "f1-score": 0.9108910891089109,
+            "support": 150.0
+          },
+          "victory": {
+            "precision": 0.9565217391304348,
+            "recall": 0.88,
+            "f1-score": 0.9166666666666666,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9779411764705882,
+            "recall": 0.8866666666666667,
+            "f1-score": 0.9300699300699301,
+            "support": 150.0
+          },
+          "micro avg": {
+            "precision": 0.92,
+            "recall": 0.8893333333333333,
+            "f1-score": 0.9044067796610169,
+            "support": 750.0
+          },
+          "macro avg": {
+            "precision": 0.9215745741574268,
+            "recall": 0.8893333333333334,
+            "f1-score": 0.9046309604732004,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.921574574157427,
+            "recall": 0.8893333333333333,
+            "f1-score": 0.9046309604732004,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "thumb_up",
+            "predicted_gesture": "thumb_down",
+            "confusion_rate": 0.10666666666666667,
+            "count": 16
+          },
+          {
+            "true_gesture": "victory",
+            "predicted_gesture": "thumb_up",
+            "confusion_rate": 0.0896551724137931,
+            "count": 13
+          },
+          {
+            "true_gesture": "thumb_down",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.06,
+            "count": 9
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "fist",
+            "accuracy": 0.9787234042553191,
+            "total_samples": 141
+          },
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9568345323741008,
+            "total_samples": 139
+          },
+          {
+            "gesture": "victory",
+            "accuracy": 0.9103448275862069,
+            "total_samples": 145
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "victory",
+            "accuracy": 0.9103448275862069,
+            "total_samples": 145
+          },
+          {
+            "gesture": "thumb_down",
+            "accuracy": 0.9066666666666666,
+            "total_samples": 150
+          },
+          {
+            "gesture": "thumb_up",
+            "accuracy": 0.8533333333333334,
+            "total_samples": 150
+          }
+        ],
+        "common_false_positives": {
+          "thumb_up": [
+            {
+              "source_gesture": "victory",
+              "count": 13,
+              "rate": 0.0896551724137931
+            },
+            {
+              "source_gesture": "thumb_down",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ],
+          "thumb_down": [
+            {
+              "source_gesture": "thumb_up",
+              "count": 16,
+              "rate": 0.10666666666666667
+            }
+          ],
+          "fist": [
+            {
+              "source_gesture": "thumb_down",
+              "count": 9,
+              "rate": 0.06
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 6,
+              "rate": 0.04316546762589928
+            }
+          ],
+          "victory": [
+            {
+              "source_gesture": "thumb_up",
+              "count": 6,
+              "rate": 0.04
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 3,
+              "rate": 0.02127659574468085
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "thumb_up": {
+            "accuracy": 0.8533333333333334,
+            "error_rate": 0.1466666666666666,
+            "total_errors": 22,
+            "difficulty_score": 0.1466666666666666
+          },
+          "thumb_down": {
+            "accuracy": 0.9066666666666666,
+            "error_rate": 0.09333333333333338,
+            "total_errors": 14,
+            "difficulty_score": 0.09333333333333338
+          },
+          "fist": {
+            "accuracy": 0.9787234042553191,
+            "error_rate": 0.021276595744680882,
+            "total_errors": 3,
+            "difficulty_score": 0.021276595744680882
+          },
+          "victory": {
+            "accuracy": 0.9103448275862069,
+            "error_rate": 0.08965517241379306,
+            "total_errors": 13,
+            "difficulty_score": 0.08965517241379306
+          },
+          "no_gesture": {
+            "accuracy": 0.9568345323741008,
+            "error_rate": 0.043165467625899234,
+            "total_errors": 6,
+            "difficulty_score": 0.043165467625899234
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:30.307689"
+    },
+    "system": {
+      "controller": "system",
+      "labels": [
+        "love_you",
+        "fist",
+        "open_palm",
+        "thumb_down",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          124,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          138,
+          7,
+          0,
+          5
+        ],
+        [
+          0,
+          13,
+          121,
+          0,
+          0
+        ],
+        [
+          0,
+          8,
+          5,
+          137,
+          0
+        ],
+        [
+          0,
+          2,
+          6,
+          0,
+          142
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.8826666666666667,
+        "precision_per_class": {
+          "love_you": 1.0,
+          "fist": 0.8571428571428571,
+          "open_palm": 0.8705035971223022,
+          "thumb_down": 1.0,
+          "no_gesture": 0.9659863945578231
+        },
+        "recall_per_class": {
+          "love_you": 0.8266666666666667,
+          "fist": 0.92,
+          "open_palm": 0.8066666666666666,
+          "thumb_down": 0.9133333333333333,
+          "no_gesture": 0.9466666666666667
+        },
+        "f1_per_class": {
+          "love_you": 0.9051094890510949,
+          "fist": 0.887459807073955,
+          "open_palm": 0.8373702422145328,
+          "thumb_down": 0.9547038327526133,
+          "no_gesture": 0.9562289562289562
+        },
+        "support_per_class": {
+          "love_you": 150,
+          "fist": 150,
+          "open_palm": 150,
+          "thumb_down": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "love_you": {
+            "precision": 1.0,
+            "recall": 0.8266666666666667,
+            "f1-score": 0.9051094890510949,
+            "support": 150.0
+          },
+          "fist": {
+            "precision": 0.8571428571428571,
+            "recall": 0.92,
+            "f1-score": 0.887459807073955,
+            "support": 150.0
+          },
+          "open_palm": {
+            "precision": 0.8705035971223022,
+            "recall": 0.8066666666666666,
+            "f1-score": 0.8373702422145328,
+            "support": 150.0
+          },
+          "thumb_down": {
+            "precision": 1.0,
+            "recall": 0.9133333333333333,
+            "f1-score": 0.9547038327526133,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9659863945578231,
+            "recall": 0.9466666666666667,
+            "f1-score": 0.9562289562289562,
+            "support": 150.0
+          },
+          "micro avg": {
+            "precision": 0.9350282485875706,
+            "recall": 0.8826666666666667,
+            "f1-score": 0.9080932784636488,
+            "support": 750.0
+          },
+          "macro avg": {
+            "precision": 0.9387265697645966,
+            "recall": 0.8826666666666666,
+            "f1-score": 0.9081744654642305,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.9387265697645966,
+            "recall": 0.8826666666666667,
+            "f1-score": 0.9081744654642304,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.09701492537313433,
+            "count": 13
+          },
+          {
+            "true_gesture": "thumb_down",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.05333333333333334,
+            "count": 8
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "love_you",
+            "accuracy": 1.0,
+            "total_samples": 124
+          },
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9466666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "fist",
+            "accuracy": 0.92,
+            "total_samples": 150
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "fist",
+            "accuracy": 0.92,
+            "total_samples": 150
+          },
+          {
+            "gesture": "thumb_down",
+            "accuracy": 0.9133333333333333,
+            "total_samples": 150
+          },
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.9029850746268657,
+            "total_samples": 134
+          }
+        ],
+        "common_false_positives": {
+          "fist": [
+            {
+              "source_gesture": "open_palm",
+              "count": 13,
+              "rate": 0.09701492537313433
+            },
+            {
+              "source_gesture": "thumb_down",
+              "count": 8,
+              "rate": 0.05333333333333334
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 2,
+              "rate": 0.013333333333333334
+            }
+          ],
+          "open_palm": [
+            {
+              "source_gesture": "fist",
+              "count": 7,
+              "rate": 0.04666666666666667
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 6,
+              "rate": 0.04
+            },
+            {
+              "source_gesture": "thumb_down",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "love_you": {
+            "accuracy": 1.0,
+            "error_rate": 0.0,
+            "total_errors": 0,
+            "difficulty_score": 0.0
+          },
+          "fist": {
+            "accuracy": 0.92,
+            "error_rate": 0.07999999999999996,
+            "total_errors": 12,
+            "difficulty_score": 0.07999999999999996
+          },
+          "open_palm": {
+            "accuracy": 0.9029850746268657,
+            "error_rate": 0.09701492537313428,
+            "total_errors": 13,
+            "difficulty_score": 0.09701492537313428
+          },
+          "thumb_down": {
+            "accuracy": 0.9133333333333333,
+            "error_rate": 0.08666666666666667,
+            "total_errors": 13,
+            "difficulty_score": 0.08666666666666667
+          },
+          "no_gesture": {
+            "accuracy": 0.9466666666666667,
+            "error_rate": 0.053333333333333344,
+            "total_errors": 8,
+            "difficulty_score": 0.053333333333333344
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:30.730443"
+    },
+    "app": {
+      "controller": "app",
+      "labels": [
+        "point_up",
+        "fist",
+        "open_palm",
+        "victory",
+        "no_gesture"
+      ],
+      "confusion_matrix": [
+        [
+          127,
+          0,
+          5,
+          18,
+          0
+        ],
+        [
+          0,
+          142,
+          5,
+          0,
+          3
+        ],
+        [
+          10,
+          13,
+          127,
+          0,
+          0
+        ],
+        [
+          16,
+          0,
+          11,
+          123,
+          0
+        ],
+        [
+          0,
+          2,
+          5,
+          0,
+          143
+        ]
+      ],
+      "metrics": {
+        "accuracy": 0.8826666666666667,
+        "precision_per_class": {
+          "point_up": 0.8300653594771242,
+          "fist": 0.9044585987261147,
+          "open_palm": 0.8300653594771242,
+          "victory": 0.8723404255319149,
+          "no_gesture": 0.9794520547945206
+        },
+        "recall_per_class": {
+          "point_up": 0.8466666666666667,
+          "fist": 0.9466666666666667,
+          "open_palm": 0.8466666666666667,
+          "victory": 0.82,
+          "no_gesture": 0.9533333333333334
+        },
+        "f1_per_class": {
+          "point_up": 0.8382838283828383,
+          "fist": 0.9250814332247557,
+          "open_palm": 0.8382838283828383,
+          "victory": 0.845360824742268,
+          "no_gesture": 0.9662162162162162
+        },
+        "support_per_class": {
+          "point_up": 150,
+          "fist": 150,
+          "open_palm": 150,
+          "victory": 150,
+          "no_gesture": 150
+        },
+        "classification_report": {
+          "point_up": {
+            "precision": 0.8300653594771242,
+            "recall": 0.8466666666666667,
+            "f1-score": 0.8382838283828383,
+            "support": 150.0
+          },
+          "fist": {
+            "precision": 0.9044585987261147,
+            "recall": 0.9466666666666667,
+            "f1-score": 0.9250814332247557,
+            "support": 150.0
+          },
+          "open_palm": {
+            "precision": 0.8300653594771242,
+            "recall": 0.8466666666666667,
+            "f1-score": 0.8382838283828383,
+            "support": 150.0
+          },
+          "victory": {
+            "precision": 0.8723404255319149,
+            "recall": 0.82,
+            "f1-score": 0.845360824742268,
+            "support": 150.0
+          },
+          "no_gesture": {
+            "precision": 0.9794520547945206,
+            "recall": 0.9533333333333334,
+            "f1-score": 0.9662162162162162,
+            "support": 150.0
+          },
+          "accuracy": 0.8826666666666667,
+          "macro avg": {
+            "precision": 0.8832763596013598,
+            "recall": 0.8826666666666666,
+            "f1-score": 0.8826452261897835,
+            "support": 750.0
+          },
+          "weighted avg": {
+            "precision": 0.8832763596013599,
+            "recall": 0.8826666666666667,
+            "f1-score": 0.8826452261897832,
+            "support": 750.0
+          }
+        }
+      },
+      "confusion_patterns": {
+        "most_confused_pairs": [
+          {
+            "true_gesture": "point_up",
+            "predicted_gesture": "victory",
+            "confusion_rate": 0.12,
+            "count": 18
+          },
+          {
+            "true_gesture": "victory",
+            "predicted_gesture": "point_up",
+            "confusion_rate": 0.10666666666666667,
+            "count": 16
+          },
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "fist",
+            "confusion_rate": 0.08666666666666667,
+            "count": 13
+          },
+          {
+            "true_gesture": "victory",
+            "predicted_gesture": "open_palm",
+            "confusion_rate": 0.07333333333333333,
+            "count": 11
+          },
+          {
+            "true_gesture": "open_palm",
+            "predicted_gesture": "point_up",
+            "confusion_rate": 0.06666666666666667,
+            "count": 10
+          }
+        ],
+        "best_recognized_gestures": [
+          {
+            "gesture": "no_gesture",
+            "accuracy": 0.9533333333333334,
+            "total_samples": 150
+          },
+          {
+            "gesture": "fist",
+            "accuracy": 0.9466666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "point_up",
+            "accuracy": 0.8466666666666667,
+            "total_samples": 150
+          }
+        ],
+        "worst_recognized_gestures": [
+          {
+            "gesture": "point_up",
+            "accuracy": 0.8466666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "open_palm",
+            "accuracy": 0.8466666666666667,
+            "total_samples": 150
+          },
+          {
+            "gesture": "victory",
+            "accuracy": 0.82,
+            "total_samples": 150
+          }
+        ],
+        "common_false_positives": {
+          "point_up": [
+            {
+              "source_gesture": "victory",
+              "count": 16,
+              "rate": 0.10666666666666667
+            },
+            {
+              "source_gesture": "open_palm",
+              "count": 10,
+              "rate": 0.06666666666666667
+            }
+          ],
+          "fist": [
+            {
+              "source_gesture": "open_palm",
+              "count": 13,
+              "rate": 0.08666666666666667
+            },
+            {
+              "source_gesture": "no_gesture",
+              "count": 2,
+              "rate": 0.013333333333333334
+            }
+          ],
+          "open_palm": [
+            {
+              "source_gesture": "victory",
+              "count": 11,
+              "rate": 0.07333333333333333
+            },
+            {
+              "source_gesture": "point_up",
+              "count": 5,
+              "rate": 0.03333333333333333
+            },
+            {
+              "source_gesture": "fist",
+              "count": 5,
+              "rate": 0.03333333333333333
+            }
+          ],
+          "victory": [
+            {
+              "source_gesture": "point_up",
+              "count": 18,
+              "rate": 0.12
+            }
+          ],
+          "no_gesture": [
+            {
+              "source_gesture": "fist",
+              "count": 3,
+              "rate": 0.02
+            }
+          ]
+        },
+        "classification_difficulty": {
+          "point_up": {
+            "accuracy": 0.8466666666666667,
+            "error_rate": 0.15333333333333332,
+            "total_errors": 23,
+            "difficulty_score": 0.15333333333333332
+          },
+          "fist": {
+            "accuracy": 0.9466666666666667,
+            "error_rate": 0.053333333333333344,
+            "total_errors": 8,
+            "difficulty_score": 0.053333333333333344
+          },
+          "open_palm": {
+            "accuracy": 0.8466666666666667,
+            "error_rate": 0.15333333333333332,
+            "total_errors": 23,
+            "difficulty_score": 0.15333333333333332
+          },
+          "victory": {
+            "accuracy": 0.82,
+            "error_rate": 0.18000000000000005,
+            "total_errors": 27,
+            "difficulty_score": 0.18000000000000005
+          },
+          "no_gesture": {
+            "accuracy": 0.9533333333333334,
+            "error_rate": 0.046666666666666634,
+            "total_errors": 7,
+            "difficulty_score": 0.046666666666666634
+          }
+        }
+      },
+      "samples_analyzed": 750,
+      "timestamp": "2025-06-07T17:25:31.123421"
+    }
+  },
+  "comparative_analysis": {
+    "accuracy_ranking": [
+      {
+        "controller": "mouse",
+        "accuracy": 0.9093333333333333
+      },
+      {
+        "controller": "volume",
+        "accuracy": 0.9093333333333333
+      },
+      {
+        "controller": "shortcuts",
+        "accuracy": 0.908
+      },
+      {
+        "controller": "navigation",
+        "accuracy": 0.892
+      },
+      {
+        "controller": "multimedia",
+        "accuracy": 0.8893333333333333
+      },
+      {
+        "controller": "system",
+        "accuracy": 0.8826666666666667
+      },
+      {
+        "controller": "app",
+        "accuracy": 0.8826666666666667
+      }
+    ],
+    "most_problematic_gestures": {},
+    "best_performing_controllers": [],
+    "gesture_difficulty_across_controllers": {
+      "fist": {
+        "average_accuracy": 0.8937607711539192,
+        "controllers_using": 7,
+        "min_accuracy": 0.8571428571428571,
+        "max_accuracy": 0.9210526315789473
+      },
+      "victory": {
+        "average_accuracy": 0.9243139692550282,
+        "controllers_using": 5,
+        "min_accuracy": 0.8723404255319149,
+        "max_accuracy": 0.9708029197080292
+      },
+      "point_up": {
+        "average_accuracy": 0.8625216419920568,
+        "controllers_using": 3,
+        "min_accuracy": 0.8300653594771242,
+        "max_accuracy": 0.8904109589041096
+      },
+      "no_gesture": {
+        "average_accuracy": 0.9677298477936036,
+        "controllers_using": 7,
+        "min_accuracy": 0.9594594594594594,
+        "max_accuracy": 0.9794520547945206
+      },
+      "love_you": {
+        "average_accuracy": 1.0,
+        "controllers_using": 1,
+        "min_accuracy": 1.0,
+        "max_accuracy": 1.0
+      },
+      "open_palm": {
+        "average_accuracy": 0.8508536905756413,
+        "controllers_using": 6,
+        "min_accuracy": 0.8095238095238095,
+        "max_accuracy": 0.891156462585034
+      },
+      "thumb_down": {
+        "average_accuracy": 0.9483638173447804,
+        "controllers_using": 3,
+        "min_accuracy": 0.8947368421052632,
+        "max_accuracy": 1.0
+      },
+      "thumb_up": {
+        "average_accuracy": 0.9145318152167468,
+        "controllers_using": 3,
+        "min_accuracy": 0.8767123287671232,
+        "max_accuracy": 0.9772727272727273
+      }
+    }
+  },
+  "summary": {
+    "total_controllers_analyzed": 7,
+    "total_samples_processed": 5250,
+    "average_accuracy_across_controllers": 0.8961904761904762,
+    "analysis_timestamp": "2025-06-07T17:25:31.501669"
+  }
+}

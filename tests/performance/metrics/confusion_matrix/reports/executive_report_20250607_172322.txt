@@ -1,0 +1,19 @@
+# REPORTE EJECUTIVO - MATRIZ DE CONFUSIÓN
+Generado: 2025-06-07 17:23:22
+============================================================
+
+## 📊 RESUMEN EJECUTIVO
+Controladores analizados: 7
+Muestras totales procesadas: 5,250
+Precisión promedio: 89.2%
+
+## 🏆 RANKING DE RENDIMIENTO
+1. SHORTCUTS: 91.2% 🟢
+2. VOLUME: 90.8% 🟢
+3. MULTIMEDIA: 89.3% 🟡
+4. NAVIGATION: 89.1% 🟡
+5. MOUSE: 88.7% 🟡
+6. SYSTEM: 88.3% 🟡
+7. APP: 86.8% 🟡
+
+
