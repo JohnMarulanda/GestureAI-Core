@@ -18,11 +18,279 @@ Controles:
 
 import sys
 import os
+import cv2
+import time
+import mediapipe as mp
 
 # Agregar el directorio raíz al path para importar módulos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from core.controllers.shortcuts_controller import ShortcutsController
+
+class ShortcutsControllerTest:
+    """Test wrapper for ShortcutsController with enhanced UI and statistics."""
+    
+    def __init__(self):
+        """Initialize the test wrapper."""
+        self.controller = ShortcutsController()
+        
+        # Action status
+        self.action_message = ""
+        self.action_message_time = 0
+        self.action_message_duration = 2.5
+        
+        # Spanish translations for display
+        self.gesture_names = {
+            'Victory': 'Victoria (V)',
+            'Open_Palm': 'Palma abierta',
+            'Closed_Fist': 'Puño cerrado',
+            'Pointing_Up': 'Señalando hacia arriba',
+            'Thumb_Up': 'Pulgar hacia arriba',
+            'Thumb_Down': 'Pulgar hacia abajo',
+            'ILoveYou': 'Te amo (I Love You)'
+        }
+        
+        # Action descriptions in Spanish
+        self.action_descriptions = {
+            'copy': 'Copiar (Ctrl+C)',
+            'paste': 'Pegar (Ctrl+V)',
+            'escape': 'Escape (ESC)',
+            'refresh': 'Actualizar (F5)',
+            'undo': 'Deshacer (Ctrl+Z)',
+            'redo': 'Rehacer (Ctrl+Y)',
+            'save': 'Guardar (Ctrl+S)'
+        }
+        
+        # Shortcut action counters
+        self.action_counts = {
+            'copy': 0,
+            'paste': 0,
+            'escape': 0,
+            'refresh': 0,
+            'undo': 0,
+            'redo': 0,
+            'save': 0
+        }
+        
+        # Override controller methods to add logging and statistics
+        self._override_controller_methods()
+        
+        print("✅ Controlador de Atajos de Teclado inicializado")
+        if self.controller.gesture_recognizer:
+            print("✅ Gesture Recognizer para atajos inicializado")
+        else:
+            print(f"❌ Modelo no encontrado: {self.controller.model_path}")
+    
+    def _override_controller_methods(self):
+        """Override controller methods to add logging and statistics."""
+        # Store original method
+        original_perform_shortcut_action = self.controller._perform_shortcut_action
+        
+        def enhanced_perform_shortcut_action(gesture_name, confidence):
+            action = self.controller.gesture_actions[gesture_name]
+            gesture_display = self.gesture_names[gesture_name]
+            action_description = self.action_descriptions[action]
+            keys = self.controller.shortcuts[action]
+            
+            # Update counter and display message
+            self.action_counts[action] += 1
+            shortcut_display = "+".join(keys).upper()
+            self._set_action_message(f"⌨️ {shortcut_display}")
+            print(f"⌨️ {gesture_display} (Confianza: {confidence:.2f}) - {action_description}")
+            
+            # Call original method
+            original_perform_shortcut_action(gesture_name, confidence)
+        
+        # Replace method
+        self.controller._perform_shortcut_action = enhanced_perform_shortcut_action
+    
+    def _set_action_message(self, message):
+        """Set the action message to display on screen."""
+        self.action_message = message
+        self.action_message_time = time.time()
+    
+    def draw_shortcuts_info(self, image):
+        """Draw shortcuts control information on the image."""
+        try:
+            height, width, _ = image.shape
+            
+            # Draw background rectangle for text
+            cv2.rectangle(image, (10, 10), (width - 10, 320), (0, 0, 0), -1)
+            cv2.rectangle(image, (10, 10), (width - 10, 320), (255, 255, 255), 2)
+            
+            # Draw title
+            cv2.putText(image, "Atajos de Teclado por Gestos", 
+                       (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            # Draw gesture instructions
+            y_pos = 65
+            instructions = [
+                "✌️ Victoria (V): Copiar (Ctrl+C)",
+                "✋ Palma abierta: Pegar (Ctrl+V)",
+                "✊ Puño cerrado: Escape (ESC)",
+                "☝️ Señalar arriba: Actualizar (F5)",
+                "👍 Pulgar arriba: Deshacer (Ctrl+Z)",
+                "👎 Pulgar abajo: Rehacer (Ctrl+Y)",
+                "🤟 Te amo: Guardar (Ctrl+S)"
+            ]
+            
+            for instruction in instructions:
+                cv2.putText(image, instruction, (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                y_pos += 25
+            
+            # Draw current gesture
+            if self.controller.last_gesture:
+                gesture_display = self.gesture_names[self.controller.last_gesture]
+                action = self.controller.gesture_actions[self.controller.last_gesture]
+                action_desc = self.action_descriptions[action]
+                cv2.putText(image, f"Gesto: {gesture_display} -> {action_desc}", 
+                           (20, y_pos + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+            
+            # Draw delay status
+            current_time = time.time()
+            y_delay_pos = y_pos + 60
+            
+            # Action delay
+            action_remaining = max(0, self.controller.action_delay - (current_time - self.controller.last_action_time))
+            if action_remaining > 0:
+                cv2.putText(image, f"Siguiente atajo en: {action_remaining:.1f}s", 
+                           (20, y_delay_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 100, 100), 1)
+                y_delay_pos += 20
+            
+            # Draw hands detected count
+            hands_count = len(self.controller.current_result.hand_landmarks) if self.controller.current_result and self.controller.current_result.hand_landmarks else 0
+            cv2.putText(image, f"Manos detectadas: {hands_count}", 
+                       (20, y_delay_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Draw action message
+            if self.action_message and time.time() - self.action_message_time < self.action_message_duration:
+                cv2.putText(image, self.action_message, 
+                           (20, y_delay_pos + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            
+            # Draw exit instruction
+            cv2.putText(image, "Presiona ESC para salir", 
+                       (20, y_delay_pos + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+                       
+        except Exception as e:
+            print(f"⚠️ Error al dibujar información: {e}")
+    
+    def draw_statistics(self, image):
+        """Display shortcuts statistics on the right side."""
+        try:
+            height, width, _ = image.shape
+            
+            # Draw background for statistics
+            stats_x = width - 280
+            cv2.rectangle(image, (stats_x, 10), (width - 10, 250), (0, 0, 0), -1)
+            cv2.rectangle(image, (stats_x, 10), (width - 10, 250), (255, 255, 255), 2)
+            
+            # Draw statistics title
+            cv2.putText(image, "Estadisticas", 
+                       (stats_x + 10, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            y_pos = 60
+            for action, count in self.action_counts.items():
+                action_name = self.action_descriptions[action].split(' (')[0]  # Remove shortcut part
+                cv2.putText(image, f"{action_name}: {count}", 
+                           (stats_x + 10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                y_pos += 22
+            
+            # Total actions
+            total_actions = sum(self.action_counts.values())
+            cv2.putText(image, f"Total: {total_actions}", 
+                       (stats_x + 10, y_pos + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+            
+        except Exception as e:
+            print(f"⚠️ Error al dibujar estadísticas: {e}")
+    
+    def print_statistics(self):
+        """Print shortcuts control statistics."""
+        print("\n" + "="*50)
+        print("📊 ESTADÍSTICAS DE ATAJOS DE TECLADO")
+        print("="*50)
+        
+        total_actions = sum(self.action_counts.values())
+        
+        for action, count in self.action_counts.items():
+            action_name = self.action_descriptions[action]
+            percentage = (count / total_actions * 100) if total_actions > 0 else 0
+            print(f"{action_name:<25} | {count:>3} veces ({percentage:>5.1f}%)")
+        
+        print("-"*50)
+        print(f"{'Total de atajos':<25} | {total_actions:>3}")
+        print("="*50 + "\n")
+    
+    def run(self):
+        """Run the enhanced shortcuts control loop."""
+        if not self.controller.gesture_recognizer:
+            print("❌ Error: Gesture Recognizer no está inicializado")
+            return
+            
+        if not self.controller.start_camera():
+            print("❌ Error: No se pudo iniciar la cámara")
+            return
+        
+        print("\n⌨️ Iniciando control de atajos de teclado por gestos...")
+        print("Gestos disponibles:")
+        print("  ✌️ Victoria (V) → Copiar (Ctrl+C)")
+        print("  ✋ Palma abierta → Pegar (Ctrl+V)")
+        print("  ✊ Puño cerrado → Escape (ESC)")
+        print("  ☝️ Señalar arriba → Actualizar (F5)")
+        print("  👍 Pulgar arriba → Deshacer (Ctrl+Z)")
+        print("  👎 Pulgar abajo → Rehacer (Ctrl+Y)")
+        print("  🤟 Te amo → Guardar (Ctrl+S)")
+        print("\n⌨️ Ejecuta atajos de teclado con gestos naturales")
+        print("   Presiona ESC para salir\n")
+        
+        try:
+            frame_timestamp = 0
+            frame_count = 0
+            
+            while True:
+                image = self.controller.process_frame()
+                if image is None:
+                    break
+                
+                frame_count += 1
+                
+                # Process every 2nd frame for better performance
+                if frame_count % 2 == 0:
+                    # Convert BGR to RGB for MediaPipe
+                    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+                    
+                    # Process the frame with gesture recognizer
+                    if self.controller.gesture_recognizer:
+                        frame_timestamp += 66
+                        try:
+                            self.controller.gesture_recognizer.recognize_async(mp_image, frame_timestamp)
+                        except Exception as e:
+                            print(f"⚠️ Error en reconocimiento: {e}")
+                
+                # Draw shortcuts control information
+                self.draw_shortcuts_info(image)
+                
+                # Draw statistics
+                self.draw_statistics(image)
+                
+                # Draw hand landmarks
+                self.controller.draw_hand_landmarks(image)
+                
+                # Display the image
+                cv2.imshow('Atajos de Teclado por Gestos', image)
+                
+                # Exit on ESC key
+                if cv2.waitKey(1) & 0xFF == 27:
+                    break
+                    
+        except KeyboardInterrupt:
+            print("\n⚠️ Interrupción por teclado detectada")
+        except Exception as e:
+            print(f"❌ Error durante la ejecución: {e}")
+        finally:
+            self.controller.stop_camera()
+            self.print_statistics()
+            print("👋 Control de atajos de teclado finalizado")
 
 def main():
     """Función principal para ejecutar la prueba de control de atajos de teclado."""
@@ -153,11 +421,11 @@ def main():
         print("\n❌ Operación cancelada por el usuario")
         return
     
-    # Crear y ejecutar el controlador
+    # Crear y ejecutar el controlador de prueba
     try:
         print("\n⌨️ Inicializando controlador de atajos de teclado...")
-        controller = ShortcutsController()
-        controller.run()
+        test_controller = ShortcutsControllerTest()
+        test_controller.run()
     except Exception as e:
         print(f"❌ Error al ejecutar el controlador: {e}")
         print("   Verifica que:")
