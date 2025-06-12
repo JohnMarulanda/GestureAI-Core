@@ -1,0 +1,70 @@
+{
+    "hand_gestures": [
+        {
+            "id": "pinch",
+            "name": "Pinch Gesture",
+            "landmarks": [
+                [
+                    4,
+                    8
+                ]
+            ],
+            "threshold": 0.85,
+            "action": "pinch_action"
+        },
+        {
+            "id": "palm",
+            "name": "Open Palm",
+            "landmarks": [
+                [
+                    0,
+                    5,
+                    9,
+                    13,
+                    17
+                ]
+            ],
+            "threshold": 0.8,
+            "action": "palm_action"
+        },
+        {
+            "id": "fist",
+            "name": "Closed Fist",
+            "landmarks": [
+                [
+                    0,
+                    9
+                ]
+            ],
+            "threshold": 0.9,
+            "action": "fist_action"
+        },
+        {
+            "id": "point",
+            "name": "Pointing Gesture",
+            "landmarks": [
+                [
+                    8,
+                    5
+                ]
+            ],
+            "threshold": 0.85,
+            "action": "point_action"
+        },
+        {
+            "id": "victory",
+            "name": "Victory Sign",
+            "landmarks": [
+                [
+                    8,
+                    12
+                ]
+            ],
+            "threshold": 0.85,
+            "action": "victory_action"
+        }
+    ],
+    "keyboard_gestures": {},
+    "button_gestures": {},
+    "app_gestures": {}
+}
